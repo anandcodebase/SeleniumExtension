@@ -1,2 +1,2 @@
-# SeleniumExtention
+# SeleniumExtension
 Helpful Selenium Extension
