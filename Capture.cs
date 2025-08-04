@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 
-namespace SeleniumExtention
+namespace SimpleSeleniumSupport
 {
     public class Capture
     {

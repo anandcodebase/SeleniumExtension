@@ -1,31 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package>
   <metadata>
-    <id>SeleniumExtention</id>
-    <version>1.0.0</version>
-    <title>Selenium Network Monitor with Accessibility Extensions and Excel Export</title>
+    <id>SimpleSeleniumSupport</id>
+    <version>1.0.1</version>
+    <title>Selenium WebDriver Extensions with Network/AI Analysis</title>
     <authors>Open Source</authors>
     <owners>Open Source</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>
-      A comprehensive Selenium WebDriver addon for monitoring network traffic (requests and responses),
-      exporting the full network information to Excel using NPOI, and providing helpful
-      WebDriver extension methods for locating elements by ARIA roles.
+      A comprehensive Selenium WebDriver addon for monitoring network traffic, exporting data to Excel (NPOI), and locating elements by ARIA roles.
+      Also includes an AI-powered utility to analyze test failures (using a local Ollama instance) and suggest code fixes.
     </description>
     <releaseNotes>
-      Initial release: Network traffic capture, Excel export (NPOI), and WebDriver extensions for ARIA role-based element location.
+      Version 1.0.1: Added AI-powered test failure analysis with `AnalyzeAndSuggestFix` extension method.
+      Version 1.0.0: Initial release with network traffic capture, Excel export (NPOI), and ARIA role-based element locators.
     </releaseNotes>
     <copyright>Copyright 2025</copyright>
-    <tags>Selenium WebDriver Network DevTools Traffic Monitoring Excel NPOI ARIA Accessibility Locators Extensions</tags>
+    <tags>Selenium WebDriver DevTools Network Traffic Monitor Excel NPOI ARIA Accessibility AI Test Analysis Fix Llama</tags>
     <dependencies>
-      <dependency id="Selenium.WebDriver" version="4.34.0" /> 
+      <dependency id="Selenium.WebDriver" version="4.34.0" />
       <dependency id="Selenium.Support" version="4.34.0" />
-      <dependency id="DotNetSeleniumExtras.WaitHelpers" version="3.11.0" /> 
+      <dependency id="DotNetSeleniumExtras.WaitHelpers" version="3.11.0" />
       <dependency id="NPOI" version="2.7.4" />
+      <dependency id="System.Text.Json" version="8.0.0" />
     </dependencies>
   </metadata>
   <files>
-    <file src="bin\$configuration$\SeleniumNetworkMonitor.dll" target="lib\net8.0" /> 
-    <file src="bin\$configuration$\SeleniumNetworkMonitor.pdb" target="lib\net8.0" />
+    <file src="bin\$configuration$\SimpleSeleniumSupport.dll" target="lib\net8.0" />
+    <file src="bin\$configuration$\SimpleSeleniumSupport.pdb" target="lib\net8.0" />
   </files>
 </package>
