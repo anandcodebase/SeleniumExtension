@@ -2,21 +2,20 @@
 <package>
   <metadata>
     <id>SimpleSeleniumSupport</id>
-    <version>1.0.1</version>
-    <title>Selenium WebDriver Extensions with Network/AI Analysis</title>
+    <version>1.3.0</version>
+    <title>AI-Powered Selenium WebDriver Toolkit</title>
     <authors>Open Source</authors>
     <owners>Open Source</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>
-      A comprehensive Selenium WebDriver addon for monitoring network traffic, exporting data to Excel (NPOI), and locating elements by ARIA roles.
-      Also includes an AI-powered utility to analyze test failures (using a local Ollama instance) and suggest code fixes.
+      A comprehensive Selenium WebDriver addon for advanced, AI-driven automation. Features include:
+      - **AI Element Finding:** Use natural language (e.g., "the login button") to find elements with `FindElementByAI`, making tests highly resilient to UI changes.
+      - **AI Failure Analysis:** Automatically analyze exceptions and suggest code fixes.
+      - **Advanced Network Control:** Monitor traffic and synchronize tests by waiting for network requests.
+      - **Rich Selectors:** Use Playwright-style and ARIA role-based element locators.
     </description>
-    <releaseNotes>
-      Version 1.0.1: Added AI-powered test failure analysis with `AnalyzeAndSuggestFix` extension method.
-      Version 1.0.0: Initial release with network traffic capture, Excel export (NPOI), and ARIA role-based element locators.
-    </releaseNotes>
     <copyright>Copyright 2025</copyright>
-    <tags>Selenium WebDriver DevTools Network Traffic Monitor Excel NPOI ARIA Accessibility AI Test Analysis Fix Llama</tags>
+    <tags>Selenium AI WebDriver Playwright DevTools Network Monitor Wait Sync ARIA Test Analysis Fix Llama Automation</tags>
     <dependencies>
       <dependency id="Selenium.WebDriver" version="4.34.0" />
       <dependency id="Selenium.Support" version="4.34.0" />

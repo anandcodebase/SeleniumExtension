@@ -4,6 +4,17 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>SimpleSeleniumSupport</PackageId>
+    <Version>1.2.0</Version>
+    <Authors>Open Source</Authors>
+    <Description>
+      A comprehensive Selenium WebDriver addon for advanced, AI-driven automation. Features include:
+      - AI Element Finding
+      - AI Failure Analysis
+      - Advanced Network Control
+      - Rich Selectors
+    </Description>
+    <PackageTags>Selenium AI WebDriver DevTools Network</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

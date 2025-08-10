@@ -39,5 +39,53 @@ namespace SimpleSeleniumSupport
             string xpath = $"//*[@role='{role}' and (text()='{accessibleName}' or @aria-label='{accessibleName}' or @title='{accessibleName}')]";
             return wait.Until(d => d.FindElements(By.XPath(xpath)).Count > 0 ? d.FindElements(By.XPath(xpath)) : null);
         }
+
+        private static IWebElement FindElement(IWebDriver driver, By by, int timeoutInSeconds)
+        {
+            WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(timeoutInSeconds));
+            return wait.Until(ExpectedConditions.ElementIsVisible(by));
+        }
+
+        private static IReadOnlyCollection<IWebElement> FindElements(IWebDriver driver, By by, int timeoutInSeconds)
+        {
+            WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(timeoutInSeconds));
+            return wait.Until(d => d.FindElements(by).Any() ? d.FindElements(by) : null);
+        }
+
+        public static IWebElement GetByText(this IWebDriver driver, string text, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[text()='{text}']"), timeoutInSeconds);
+        }
+
+        public static IReadOnlyCollection<IWebElement> GetElementsByText(this IWebDriver driver, string text, int timeoutInSeconds = 10)
+        {
+            return FindElements(driver, By.XPath($"//*[text()='{text}']"), timeoutInSeconds);
+        }
+
+        public static IWebElement GetByLabel(this IWebDriver driver, string label, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[@aria-label='{label}']"), timeoutInSeconds);
+        }
+
+        public static IWebElement GetByPlaceholder(this IWebDriver driver, string placeholder, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[@placeholder='{placeholder}']"), timeoutInSeconds);
+        }
+
+        public static IWebElement GetByAltText(this IWebDriver driver, string altText, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[@alt='{altText}']"), timeoutInSeconds);
+        }
+
+        public static IWebElement GetByTitle(this IWebDriver driver, string title, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[@title='{title}']"), timeoutInSeconds);
+        }
+
+        public static IWebElement GetByTestId(this IWebDriver driver, string testId, int timeoutInSeconds = 10)
+        {
+            return FindElement(driver, By.XPath($"//*[@data-testid='{testId}']"), timeoutInSeconds);
+        }
+
     }
 }
