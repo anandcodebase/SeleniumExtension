@@ -2,10 +2,12 @@
 <package>
   <metadata>
     <id>SimpleSeleniumSupport</id>
+    <license type="file">LICENSE</license>
+    <readme>README.md</readme>
     <version>1.3.0</version>
     <title>AI-Powered Selenium WebDriver Toolkit</title>
-    <authors>Open Source</authors>
-    <owners>Open Source</owners>
+    <authors>Anand</authors>
+    <owners>Anand</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>
       A comprehensive Selenium WebDriver addon for advanced, AI-driven automation. Features include:
@@ -27,5 +29,7 @@
   <files>
     <file src="bin\$configuration$\SimpleSeleniumSupport.dll" target="lib\net8.0" />
     <file src="bin\$configuration$\SimpleSeleniumSupport.pdb" target="lib\net8.0" />
+    <file src="LICENSE" target="" />
+    <file src="README.md" target="" />
   </files>
 </package>
