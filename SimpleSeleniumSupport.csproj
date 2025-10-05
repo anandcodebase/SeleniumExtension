@@ -16,12 +16,13 @@
     </Description>
     <PackageTags>Selenium AI WebDriver DevTools Network</PackageTags>
   </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="DotNetSeleniumExtras.WaitHelpers" Version="3.11.0" />
-    <PackageReference Include="NPOI" Version="2.7.4" />
-    <PackageReference Include="Selenium.Support" Version="4.34.0" />
-    <PackageReference Include="Selenium.WebDriver" Version="4.34.0" />
-    <PackageReference Include="System.Text.Json" Version="9.0.7" />
+    <PackageReference Include="NPOI" Version="2.7.5" />
+    <PackageReference Include="Selenium.Support" Version="4.36.0" />
+    <PackageReference Include="Selenium.WebDriver" Version="4.36.0" />
+    <PackageReference Include="System.Text.Json" Version="9.0.9" />
   </ItemGroup>
   <ItemGroup>
     <None Include="LICENSE" Pack="true" PackagePath="\" />

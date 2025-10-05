@@ -1,21 +1,37 @@
 ﻿using OpenQA.Selenium;
 using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Support.UI;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using OpenQA.Selenium.DevTools.V138.Network;
 
 namespace SimpleSeleniumSupport
 {
+    /// <summary>
+    /// Capture Network Traffic
+    /// </summary>
     public class Capture
     {
+        /// <summary>
+        /// The driver
+        /// </summary>
         private readonly IWebDriver _driver;
+        /// <summary>
+        /// The request sent map
+        /// </summary>
         private readonly ConcurrentDictionary<string, RequestSent> _requestSentMap = new ConcurrentDictionary<string, RequestSent>();
+        /// <summary>
+        /// The response received map
+        /// </summary>
         private readonly ConcurrentDictionary<string, ResponseReceived> _responseReceivedMap = new ConcurrentDictionary<string, ResponseReceived>();
+        /// <summary>
+        /// The network interceptor
+        /// </summary>
         private INetwork _networkInterceptor;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Capture"/> class.
+        /// </summary>
+        /// <param name="driver">The driver.</param>
+        /// <exception cref="System.ArgumentException">Network monitoring is only supported for drivers that implement IHasDevTools (e.g., ChromeDriver, EdgeDriver). - driver</exception>
         public Capture(IWebDriver driver)
         {
             if (driver is not IDevTools)
@@ -62,6 +78,11 @@ namespace SimpleSeleniumSupport
             Console.WriteLine("Network monitoring stopped.");
         }
 
+        /// <summary>
+        /// Responses the received handler.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="NetworkResponseReceivedEventArgs"/> instance containing the event data.</param>
         private void ResponseReceivedHandler(object sender, NetworkResponseReceivedEventArgs e)
         {
             var response = new ResponseReceived
@@ -77,6 +98,11 @@ namespace SimpleSeleniumSupport
             _responseReceivedMap.TryAdd(e.RequestId, response);
         }
 
+        /// <summary>
+        /// Requests the sent handler.
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The <see cref="NetworkRequestSentEventArgs"/> instance containing the event data.</param>
         private void RequestSentHandler(object sender, NetworkRequestSentEventArgs e)
         {
             var request = new RequestSent
@@ -91,6 +117,10 @@ namespace SimpleSeleniumSupport
             _requestSentMap.TryAdd(e.RequestId, request);
         }
 
+        /// <summary>
+        /// Gets the combined network information.
+        /// </summary>
+        /// <returns></returns>
         public IReadOnlyList<FullNetworkInfo> GetCombinedNetworkInfo()
         {
             var combinedList = new List<FullNetworkInfo>();
@@ -125,6 +155,9 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Waits for a specific network request containing the given URL part to complete.
         /// </summary>
+        /// <param name="urlPart">The URL part.</param>
+        /// <param name="timeoutInSeconds">The timeout in seconds.</param>
+        /// <returns></returns>
         public FullNetworkInfo WaitForRequest(string urlPart, int timeoutInSeconds = 30)
         {
             var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutInSeconds));
@@ -138,6 +171,7 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Waits for all currently tracked network requests to complete.
         /// </summary>
+        /// <param name="timeoutInSeconds">The timeout in seconds.</param>
         public void WaitForAllRequests(int timeoutInSeconds = 30)
         {
             var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutInSeconds));
@@ -148,6 +182,9 @@ namespace SimpleSeleniumSupport
             });
         }
 
+        /// <summary>
+        /// Clears the captured data.
+        /// </summary>
         public void ClearCapturedData()
         {
             _requestSentMap.Clear();
