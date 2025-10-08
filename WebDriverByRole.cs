@@ -10,7 +10,7 @@ namespace SimpleSeleniumSupport
     {
         #region Types & Config
         /// <summary>
-        /// 
+        /// Wait Until
         /// </summary>
         public enum WaitUntil { None, Exists, Visible, Enabled, Clickable }
 
@@ -161,34 +161,77 @@ namespace SimpleSeleniumSupport
             return FindElementsByRoleAndName(driver, role, accessibleName, options);
         }
 
-        // TEXT
         /// <summary>
-        /// Gets the by text.
+        /// Finds the elements by exact text.
         /// </summary>
         /// <param name="driver">The driver.</param>
         /// <param name="text">The text.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        /// <exception cref="OpenQA.Selenium.NoSuchElementException">No element found with text='{text}'</exception>
-        public static IWebElement GetByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        private static IReadOnlyCollection<IWebElement> FindElementsByExactText(IWebDriver driver, string text, WebDriverByRole.LocatorOptions options)
         {
-            var el = driver.TryGetByText(text, options);
-            if (el == null) throw new NoSuchElementException($"No element found with text='{text}'");
-            return el;
+            string loweredText = text.ToLowerInvariant();
+
+            // XPath that finds the smallest element that *directly* contains the text node
+            // and avoids matching ancestor elements like <body> or <div> containing many children.
+            string xpath = options.ExactMatch
+                ? $"//*[normalize-space(text()) = {QuoteForXPath(text)}]"
+                : $"//*[text()[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(loweredText)})]]";
+
+            var elements = driver.FindElements(By.XPath(xpath))
+                                 .Where(el => IsBestTextMatch(el, text, options))
+                                 .ToList();
+
+            return elements.AsReadOnly();
+        }
+        /// <summary>
+        /// Ensures the element is a good text match — not just a container that happens to include the text.
+        /// </summary>
+        /// <param name="element">The element.</param>
+        /// <param name="text">The text.</param>
+        /// <param name="options">The options.</param>
+        /// <returns>
+        ///   <c>true</c> if [is best text match] [the specified element]; otherwise, <c>false</c>.
+        /// </returns>
+        private static bool IsBestTextMatch(IWebElement element, string text, WebDriverByRole.LocatorOptions options)
+        {
+            try
+            {
+                string content = element.Text?.Trim() ?? string.Empty;
+                if (string.IsNullOrEmpty(content)) return false;
+
+                // If the element has child elements that also contain the text, skip it.
+                var childrenWithSameText = element.FindElements(By.XPath($".//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]"));
+                if (childrenWithSameText.Count > 0) return false;
+
+                // Check match logic
+                if (options.ExactMatch)
+                    return string.Equals(content, text, options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+                else
+                    return content.IndexOf(text, options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
-        /// Tries the get by text.
+        /// Properly quotes string for XPath.
         /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="text">The text.</param>
-        /// <param name="options">The options.</param>
+        /// <param name="value">The value.</param>
         /// <returns></returns>
-        public static IWebElement TryGetByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        private static string QuoteForXPath(string value)
         {
-            options ??= DefaultOptions();
-            var list = FindElementsByText(driver, text, options);
-            return list.FirstOrDefault();
+            if (value.Contains("'") && value.Contains("\""))
+            {
+                var parts = value.Split('\'');
+                return "concat(" + string.Join(", \"'\", ", parts.Select(p => $"'{p}'")) + ")";
+            }
+            else if (value.Contains("'"))
+                return $"\"{value}\"";
+            else
+                return $"'{value}'";
         }
 
         /// <summary>
@@ -220,35 +263,6 @@ namespace SimpleSeleniumSupport
             var list = FindElementsByText(driver, text, options);
             var el = list.FirstOrDefault();
             return (el != null, el);
-        }
-
-        /// <summary>
-        /// Gets all by text.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="text">The text.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        /// <exception cref="OpenQA.Selenium.NoSuchElementException">No elements found with text='{text}'</exception>
-        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
-        {
-            options ??= DefaultOptions();
-            var list = FindElementsByText(driver, text, options);
-            if (list == null || list.Count == 0) throw new NoSuchElementException($"No elements found with text='{text}'");
-            return list;
-        }
-
-        /// <summary>
-        /// Tries the get all by text.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="text">The text.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
-        {
-            options ??= DefaultOptions();
-            return FindElementsByText(driver, text, options);
         }
 
         // TestId example (all other helpers from your previous file remain unchanged)

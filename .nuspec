@@ -4,7 +4,7 @@
     <id>SimpleSeleniumSupport</id>
     <license type="file">LICENSE</license>
     <readme>README.md</readme>
-    <version>1.4.0</version>
+    <version>1.8.0</version>
     <title>AI-Powered Selenium WebDriver Toolkit</title>
     <authors>Anand</authors>
     <owners>Anand</owners>

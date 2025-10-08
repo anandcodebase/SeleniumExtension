@@ -1,22 +1,31 @@
-﻿
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using NPOI.SS.UserModel;
+using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
 
 namespace SimpleSeleniumSupport
 {
-    /// <summary>
-    /// Generated the Excel Report
-    /// </summary>
     public static class ExcelExporter
     {
+        // Excel's maximum number of characters in a cell
+        // Official limit: 32,767
+        private const int DefaultMaxCellLength = 32767;
+
         /// <summary>
         /// Export network info rows to an Excel .xlsx file using NPOI.
-        /// Writes timestamps as true Excel datetime cells.
+        /// Writes timestamps as true Excel datetime cells, trims long text to Excel limits,
+        /// and enables AutoFilter on the header row.
         /// </summary>
-        /// <param name="items">The items.</param>
-        /// <param name="path">The path.</param>
-        public static void ExportNetworkInfoToExcel(IEnumerable<FullNetworkInfo> items, string path)
+        /// <param name="items">Network info rows</param>
+        /// <param name="path">Output .xlsx path</param>
+        /// <param name="maxCellLength">Optional: maximum characters to write per cell (default 32767)</param>
+        public static void ExportNetworkInfoToExcel(IEnumerable<FullNetworkInfo> items, string path, int maxCellLength = DefaultMaxCellLength)
         {
+            if (maxCellLength <= 0) maxCellLength = DefaultMaxCellLength;
+
             var list = items?.ToList() ?? new List<FullNetworkInfo>();
 
             IWorkbook workbook = new XSSFWorkbook(); // .xlsx
@@ -25,12 +34,13 @@ namespace SimpleSeleniumSupport
             // Create a date cell style (Excel datetime)
             var dataFormat = workbook.CreateDataFormat();
             var dateStyle = workbook.CreateCellStyle();
-            // Excel-style format, shows date + time; adjust if you prefer other formatting.
             dateStyle.DataFormat = dataFormat.GetFormat("yyyy-mm-dd hh:mm:ss");
 
-            // Optionally create a wrap style for header/body columns
+            // Wrap style for large text columns
             var wrapStyle = workbook.CreateCellStyle();
             wrapStyle.WrapText = true;
+
+            // Optionally apply a monospace font for code-like columns (request/response body) - left as default.
 
             // header row
             var header = sheet.CreateRow(0);
@@ -52,15 +62,14 @@ namespace SimpleSeleniumSupport
             {
                 var row = sheet.CreateRow(rowIndex++);
 
-                row.CreateCell(0).SetCellValue(e.RequestId ?? "");
-                row.CreateCell(1).SetCellValue(e.RequestUrl ?? "");
-                row.CreateCell(2).SetCellValue(e.RequestMethod ?? "");
+                CreateStringCell(row, 0, e.RequestId ?? "", null, maxCellLength);
+                CreateStringCell(row, 1, e.RequestUrl ?? "", null, maxCellLength);
+                CreateStringCell(row, 2, e.RequestMethod ?? "", null, maxCellLength);
 
                 // Request timestamp as Excel Date cell (UTC)
                 var reqCell = row.CreateCell(3);
                 if (e.RequestTimestamp.HasValue)
                 {
-                    // Convert to UTC to have a consistent timezone in the sheet
                     DateTime dt = e.RequestTimestamp.Value.ToUniversalTime();
                     reqCell.SetCellValue(dt);
                     reqCell.CellStyle = dateStyle;
@@ -83,44 +92,42 @@ namespace SimpleSeleniumSupport
                     respCell.SetCellValue("");
                 }
 
-                // Latency: prefer stored LatencyMs, otherwise compute from timestamps if both present
+                // Latency
                 long? latency = e.LatencyMs;
                 if (!latency.HasValue && e.RequestTimestamp.HasValue && e.ResponseTimestamp.HasValue)
                 {
                     latency = (long)(e.ResponseTimestamp.Value - e.RequestTimestamp.Value).TotalMilliseconds;
                 }
 
-                var latencyCell = row.CreateCell(5);
                 if (latency.HasValue)
-                    latencyCell.SetCellValue((double)latency.Value);
+                    row.CreateCell(5).SetCellValue((double)latency.Value);
                 else
-                    latencyCell.SetCellValue("");
+                    row.CreateCell(5).SetCellValue("");
 
-                // Status code
-                var statusCell = row.CreateCell(6);
-                statusCell.SetCellValue((double)e.ResponseStatusCode);
+                // Status code (numeric)
+                row.CreateCell(6).SetCellValue((double)e.ResponseStatusCode);
 
-                // Headers serialized as multi-line text
+                // Headers serialized as multi-line text (trimmed)
                 var reqHeadersText = e.RequestHeaders != null ? string.Join("\n", e.RequestHeaders.Select(kv => $"{kv.Key}: {kv.Value}")) : "";
                 var resHeadersText = e.ResponseHeaders != null ? string.Join("\n", e.ResponseHeaders.Select(kv => $"{kv.Key}: {kv.Value}")) : "";
 
-                var reqHeadersCell = row.CreateCell(7);
-                reqHeadersCell.SetCellValue(reqHeadersText);
-                reqHeadersCell.CellStyle = wrapStyle;
+                CreateStringCell(row, 7, reqHeadersText, wrapStyle, maxCellLength);
+                CreateStringCell(row, 8, resHeadersText, wrapStyle, maxCellLength);
+                CreateStringCell(row, 9, e.RequestPostData ?? "", wrapStyle, maxCellLength);
+                CreateStringCell(row, 10, e.ResponseBody ?? "", wrapStyle, maxCellLength);
+                CreateStringCell(row, 11, e.ResponseResourceType ?? "", null, maxCellLength);
+            }
 
-                var resHeadersCell = row.CreateCell(8);
-                resHeadersCell.SetCellValue(resHeadersText);
-                resHeadersCell.CellStyle = wrapStyle;
-
-                var reqBodyCell = row.CreateCell(9);
-                reqBodyCell.SetCellValue(e.RequestPostData ?? "");
-                reqBodyCell.CellStyle = wrapStyle;
-
-                var respBodyCell = row.CreateCell(10);
-                respBodyCell.SetCellValue(e.ResponseBody ?? "");
-                respBodyCell.CellStyle = wrapStyle;
-
-                row.CreateCell(11).SetCellValue(e.ResponseResourceType ?? "");
+            // Enable AutoFilter on header row across all used columns (0..11)
+            try
+            {
+                sheet.SetAutoFilter(new CellRangeAddress(0, rowIndex - 1, 0, 11));
+                // Freeze header row for convenience
+                sheet.CreateFreezePane(0, 1);
+            }
+            catch
+            {
+                // ignore if auto-filter fails for some reason
             }
 
             // Auto-size columns (best-effort). For very large sheets this may be slow.
@@ -132,7 +139,7 @@ namespace SimpleSeleniumSupport
                 }
                 catch
                 {
-                    // ignore exceptions
+                    // ignore potential exceptions for very wide content
                 }
             }
 
@@ -145,6 +152,33 @@ namespace SimpleSeleniumSupport
             {
                 workbook.Write(fs);
             }
+        }
+
+        /// <summary>
+        /// Helper to create string cells that trims values to Excel's maximum allowed cell length.
+        /// Optionally applies a cell style (e.g., wrap).
+        /// </summary>
+        private static void CreateStringCell(IRow row, int colIndex, string value, ICellStyle style, int maxCellLength)
+        {
+            var cell = row.CreateCell(colIndex);
+            if (string.IsNullOrEmpty(value))
+            {
+                cell.SetCellValue("");
+                if (style != null) cell.CellStyle = style;
+                return;
+            }
+
+            string trimmed = value;
+            if (trimmed.Length > maxCellLength)
+            {
+                // Simple truncation; you could append ellipsis or a summary if desired.
+                trimmed = trimmed.Substring(0, maxCellLength);
+                // Optionally add a small marker to denote truncation:
+                // trimmed = trimmed.Substring(0, maxCellLength - 3) + "...";
+            }
+
+            cell.SetCellValue(trimmed);
+            if (style != null) cell.CellStyle = style;
         }
     }
 }
