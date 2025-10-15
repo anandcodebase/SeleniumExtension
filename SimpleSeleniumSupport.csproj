@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SimpleSeleniumSupport</PackageId>
-    <Version>1.8.0</Version>
+    <Version>1.9.0</Version>
     <Authors>Open Source</Authors>
     <Description>
       A comprehensive Selenium WebDriver addon for advanced, AI-driven automation. Features include:
