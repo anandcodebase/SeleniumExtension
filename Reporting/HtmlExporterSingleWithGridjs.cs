@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Reporting
 {
     /// <summary>
     /// Single-file HTML exporter using grid.js (fast paged rendering).

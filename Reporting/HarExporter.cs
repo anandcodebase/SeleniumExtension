@@ -1,7 +1,6 @@
-﻿
-using System.Text.Json;
+﻿using System.Text.Json;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Reporting
 {
     /// <summary>
     /// Minimal HAR exporter that writes a HAR 1.2-compatible JSON file from FullNetworkInfo entries.

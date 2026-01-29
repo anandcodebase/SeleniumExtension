@@ -1,4 +1,5 @@
 ﻿using OpenQA.Selenium;
+using SimpleSeleniumSupport.Reporting;
 
 namespace SimpleSeleniumSupport
 {

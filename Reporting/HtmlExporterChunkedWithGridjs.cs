@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Reporting
 {
     /// <summary>
     /// Chunked exporter that writes pages and a central data.json file, plus an index.html.

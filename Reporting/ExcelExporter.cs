@@ -6,7 +6,7 @@ using NPOI.SS.UserModel;
 using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Reporting
 {
     public static class ExcelExporter
     {
