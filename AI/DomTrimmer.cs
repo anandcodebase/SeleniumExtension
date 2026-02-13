@@ -1,7 +1,7 @@
 ﻿using OpenQA.Selenium;
 
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.AI
 {
     /// <summary>
     /// DOM trimmer: collects visible nodes (tag, short text, selected attributes) and returns a JSON string.

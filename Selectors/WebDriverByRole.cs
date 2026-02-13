@@ -1,7 +1,8 @@
 ﻿using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
+using SeleniumBy = OpenQA.Selenium.By;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Selectors
 {
     /// <summary>
     /// WebDriver ByRole
@@ -9,52 +10,8 @@ namespace SimpleSeleniumSupport
     public static class WebDriverByRole
     {
         #region Types & Config
-        /// <summary>
-        /// Wait Until
-        /// </summary>
-        public enum WaitUntil { None, Exists, Visible, Enabled, Clickable }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        public class LocatorOptions
-        {
-            /// <summary>
-            /// Gets or sets the timeout seconds.
-            /// </summary>
-            /// <value>
-            /// The timeout seconds.
-            /// </value>
-            public int TimeoutSeconds { get; set; } = 10;
-            /// <summary>
-            /// Gets or sets a value indicating whether [exact match].
-            /// </summary>
-            /// <value>
-            ///   <c>true</c> if [exact match]; otherwise, <c>false</c>.
-            /// </value>
-            public bool ExactMatch { get; set; } = false;
-            /// <summary>
-            /// Gets or sets the wait.
-            /// </summary>
-            /// <value>
-            /// The wait.
-            /// </value>
-            public WaitUntil Wait { get; set; } = WaitUntil.Visible;
-            /// <summary>
-            /// Gets or sets a value indicating whether [case sensitive].
-            /// </summary>
-            /// <value>
-            ///   <c>true</c> if [case sensitive]; otherwise, <c>false</c>.
-            /// </value>
-            public bool CaseSensitive { get; set; } = false;
-            /// <summary>
-            /// Gets or sets the polling ms.
-            /// </summary>
-            /// <value>
-            /// The polling ms.
-            /// </value>
-            public int PollingMs { get; set; } = 200;
-        }
+        
 
         /// <summary>
         /// Defaults the options.
@@ -168,7 +125,7 @@ namespace SimpleSeleniumSupport
         /// <param name="text">The text.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        private static IReadOnlyCollection<IWebElement> FindElementsByExactText(IWebDriver driver, string text, WebDriverByRole.LocatorOptions options)
+        private static IReadOnlyCollection<IWebElement> FindElementsByExactText(IWebDriver driver, string text, LocatorOptions options)
         {
             string loweredText = text.ToLowerInvariant();
 
@@ -193,7 +150,7 @@ namespace SimpleSeleniumSupport
         /// <returns>
         ///   <c>true</c> if [is best text match] [the specified element]; otherwise, <c>false</c>.
         /// </returns>
-        private static bool IsBestTextMatch(IWebElement element, string text, WebDriverByRole.LocatorOptions options)
+        private static bool IsBestTextMatch(IWebElement element, string text, LocatorOptions options)
         {
             try
             {
@@ -201,7 +158,7 @@ namespace SimpleSeleniumSupport
                 if (string.IsNullOrEmpty(content)) return false;
 
                 // If the element has child elements that also contain the text, skip it.
-                var childrenWithSameText = element.FindElements(By.XPath($".//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]"));
+                var childrenWithSameText = element.FindElements(SeleniumBy.XPath($".//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]"));
                 if (childrenWithSameText.Count > 0) return false;
 
                 // Check match logic
@@ -216,23 +173,7 @@ namespace SimpleSeleniumSupport
             }
         }
 
-        /// <summary>
-        /// Properly quotes string for XPath.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        private static string QuoteForXPath(string value)
-        {
-            if (value.Contains("'") && value.Contains("\""))
-            {
-                var parts = value.Split('\'');
-                return "concat(" + string.Join(", \"'\", ", parts.Select(p => $"'{p}'")) + ")";
-            }
-            else if (value.Contains("'"))
-                return $"\"{value}\"";
-            else
-                return $"'{value}'";
-        }
+        private static string QuoteForXPath(string value) => XPathHelper.Quote(value);
 
         /// <summary>
         /// Tries the get by text.
@@ -292,7 +233,7 @@ namespace SimpleSeleniumSupport
         {
             options ??= DefaultOptions();
             var css = $"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']";
-            return FindElementWithWait(driver, By.CssSelector(css), options, throwOnTimeout: false);
+            return FindElementWithWait(driver, By.XPath(css), options, throwOnTimeout: false);
         }
 
         /// <summary>
@@ -305,7 +246,7 @@ namespace SimpleSeleniumSupport
         public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
         {
             options ??= DefaultOptions();
-            return FindElementsWithWait(driver, By.CssSelector($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options);
+            return FindElementsWithWait(driver, SeleniumBy.XPath($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options);
         }
 
         /// <summary>
@@ -318,7 +259,7 @@ namespace SimpleSeleniumSupport
         public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
         {
             options ??= DefaultOptions();
-            return FindElementsWithWait(driver, By.CssSelector($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options, throwOnTimeout: false);
+            return FindElementsWithWait(driver, SeleniumBy.XPath($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options, throwOnTimeout: false);
         }
 
         #endregion

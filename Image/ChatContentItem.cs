@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Image
 {
     /// <summary>
     /// Represents one content item for an Ollama chat message payload.

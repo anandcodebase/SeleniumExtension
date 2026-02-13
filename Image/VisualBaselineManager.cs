@@ -2,7 +2,7 @@
 using System.Drawing;
 using System.IO;
 
-namespace SimpleSeleniumSupport.VisualBaseline
+namespace SimpleSeleniumSupport.Image
 {
     public static class VisualBaselineManager
     {

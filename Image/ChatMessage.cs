@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace SimpleSeleniumSupport.Image
 {
@@ -26,6 +22,14 @@ namespace SimpleSeleniumSupport.Image
         [JsonIgnore] public string? _contentString;
 
         [JsonIgnore] public List<ChatContentItem>? ContentItems { get; set; }
+
+        /// <summary>
+        /// Base64-encoded images for vision models. Ollama expects raw base64
+        /// (no data: URI prefix) in this array.
+        /// </summary>
+        [JsonPropertyName("images")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<string>? Images { get; set; }
 
         // Factory helpers
         public static ChatMessage TextOnly(string text) =>

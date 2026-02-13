@@ -1,6 +1,6 @@
 ﻿
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.AI
 {
     public static class AISuggestFixConfig
     {

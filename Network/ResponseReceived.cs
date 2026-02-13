@@ -1,6 +1,6 @@
 ﻿
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Network
 {
     public class ResponseReceived
     {

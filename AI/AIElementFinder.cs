@@ -3,7 +3,7 @@ using OpenQA.Selenium.Support.UI;
 using System.Collections.Concurrent;
 
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.AI
 {
     /// <summary>
     /// AI Element Finder 

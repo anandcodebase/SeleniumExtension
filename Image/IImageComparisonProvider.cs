@@ -1,4 +1,4 @@
-﻿namespace SimpleSeleniumSupport.AI
+﻿namespace SimpleSeleniumSupport.Image
 {
     public interface IImageComparisonProvider
     {

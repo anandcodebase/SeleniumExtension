@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace SimpleSeleniumSupport.Reporting
@@ -26,8 +25,10 @@ namespace SimpleSeleniumSupport.Reporting
 <script src='https://unpkg.com/gridjs/dist/gridjs.umd.js'></script>
 <style>
 .thumb {{ max-width: 80px; cursor: pointer; }}
-.modal {{ display:none; position:fixed; inset:0; background:#0008; }}
-.modal img {{ margin:auto; display:block; max-width:90%; max-height:90%; }}
+.modal {{ display:none; position:fixed; inset:0; background:#0008; z-index:999; }}
+.modal img {{ margin:auto; display:block; max-width:90%; max-height:90%; padding-top:5%; }}
+.pass {{ color: #4caf50; font-weight: bold; }}
+.fail {{ color: #f44336; font-weight: bold; }}
 </style>
 </head>
 <body>
@@ -45,6 +46,12 @@ function img(src) {{
     onclick='openImg(""${{src}}"")'/>`);
 }}
 
+function passFail(v) {{
+  return gridjs.html(v
+    ? `<span class='pass'>PASS</span>`
+    : `<span class='fail'>FAIL</span>`);
+}}
+
 function openImg(src) {{
   const m = document.getElementById('modal');
   m.querySelector('img').src = src;
@@ -53,17 +60,23 @@ function openImg(src) {{
 
 new gridjs.Grid({{
   columns: [
-    'TestId','Browser','Viewport','Similarity','BaselineStatus',
-    {{ name:'Baseline', formatter: img }},
-    {{ name:'Actual', formatter: img }},
-    {{ name:'Heatmap', formatter: img }},
-    'Reasoning'
+    'TestId','Browser','Viewport','Similarity',
+    'SSIM','Edge','PixelDiff',
+    {{ name:'Pass', formatter: (c) => passFail(c) }},
+    'Threshold','BaselineStatus',
+    {{ name:'Baseline', formatter: (c) => img(c) }},
+    {{ name:'Actual', formatter: (c) => img(c) }},
+    {{ name:'Heatmap', formatter: (c) => img(c) }},
+    {{ name:'Diff', formatter: (c) => img(c) }},
+    'Reasoning','AiReasoning'
   ],
   data: data.map(r => [
     r.TestId, r.Browser, r.Viewport, r.Similarity,
-    r.BaselineStatus,
+    r.SsimPercent, r.EdgePercent, r.PixelDiffPercent,
+    r.Passed, r.Threshold, r.BaselineStatus,
     r.BaselineImage, r.ActualImage, r.HeatmapImage,
-    r.Reasoning
+    r.DiffImage,
+    r.Reasoning, r.AiReasoning
   ]),
   search:true,
   pagination:{{ limit:10 }},

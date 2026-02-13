@@ -1,6 +1,6 @@
 ﻿
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Network
 {
     /// <summary>
     /// Combines Captured network information

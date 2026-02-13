@@ -1,7 +1,8 @@
 ﻿using OpenQA.Selenium;
+using SimpleSeleniumSupport.Network;
 using SimpleSeleniumSupport.Reporting;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Diagnostics
 {
     /// <summary>
     /// Failure Diagnostics

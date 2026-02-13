@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using SimpleSeleniumSupport.Network;
+using System.Text.Json;
 
 namespace SimpleSeleniumSupport.Reporting
 {

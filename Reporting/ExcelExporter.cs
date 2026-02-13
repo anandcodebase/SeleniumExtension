@@ -5,6 +5,7 @@ using System.Linq;
 using NPOI.SS.UserModel;
 using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
+using SimpleSeleniumSupport.Network;
 
 namespace SimpleSeleniumSupport.Reporting
 {

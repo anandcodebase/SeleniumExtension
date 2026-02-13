@@ -1,8 +1,9 @@
 ﻿using OpenQA.Selenium;
-
+using SimpleSeleniumSupport.Diagnostics;
+using SimpleSeleniumSupport.Network;
 using System.Text;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.AI
 {
     public static class AISuggestFixExtensions
     {

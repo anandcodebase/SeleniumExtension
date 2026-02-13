@@ -1,6 +1,6 @@
 ﻿
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Diagnostics
 {
     /// <summary>
     /// Represents a single entry from the browser's console log.

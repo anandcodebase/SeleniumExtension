@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Selectors
 {
     public static class TextLocatorExtensions
     {
@@ -11,9 +11,9 @@ namespace SimpleSeleniumSupport
         /// Returns the first matching element whose own text (not descendant-only text) matches the given text.
         /// Uses LocatorOptions for exact/contains and case sensitivity behavior.
         /// </summary>
-        public static IWebElement GetByText(this IWebDriver driver, string text, WebDriverByRole.LocatorOptions options = null)
+        public static IWebElement GetByText(this IWebDriver driver, string text, LocatorOptions options = null)
         {
-            options ??= new WebDriverByRole.LocatorOptions();
+            options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
             if (list == null || list.Count == 0)
                 throw new NoSuchElementException($"No element found with text '{text}'");
@@ -23,9 +23,9 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Try-get variant: returns null if not found.
         /// </summary>
-        public static IWebElement TryGetByText(this IWebDriver driver, string text, WebDriverByRole.LocatorOptions options = null)
+        public static IWebElement TryGetByText(this IWebDriver driver, string text, LocatorOptions options = null)
         {
-            options ??= new WebDriverByRole.LocatorOptions();
+            options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
             return list.FirstOrDefault();
         }
@@ -33,9 +33,9 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Returns all matching elements whose own text matches the provided text.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebDriver driver, string text, WebDriverByRole.LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
         {
-            options ??= new WebDriverByRole.LocatorOptions();
+            options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
             if (list == null || list.Count == 0)
                 throw new NoSuchElementException($"No elements found with text '{text}'");
@@ -45,9 +45,9 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Try-get-all variant: returns empty collection if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebDriver driver, string text, WebDriverByRole.LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
         {
-            options ??= new WebDriverByRole.LocatorOptions();
+            options ??= new LocatorOptions();
             return FindElementsByTextDirectMatch(driver, text, options);
         }
 
@@ -55,7 +55,7 @@ namespace SimpleSeleniumSupport
         /// Core routine: finds elements whose direct text nodes match (exact or contains),
         /// filters out large containers that contain matching text only in descendants.
         /// </summary>
-        private static IReadOnlyCollection<IWebElement> FindElementsByTextDirectMatch(IWebDriver driver, string text, WebDriverByRole.LocatorOptions options)
+        private static IReadOnlyCollection<IWebElement> FindElementsByTextDirectMatch(IWebDriver driver, string text, LocatorOptions options)
         {
             if (driver == null) return Array.Empty<IWebElement>();
             if (text == null) text = "";
@@ -104,7 +104,7 @@ namespace SimpleSeleniumSupport
         /// - element has visible/non-empty text
         /// - none of its element children themselves contain the same matching text (so we avoid returning <body>)
         /// </summary>
-        private static bool IsBestTextMatch(IWebElement element, string needle, WebDriverByRole.LocatorOptions options)
+        private static bool IsBestTextMatch(IWebElement element, string needle, LocatorOptions options)
         {
             try
             {
@@ -152,17 +152,6 @@ namespace SimpleSeleniumSupport
             }
         }
 
-        /// <summary>
-        /// Properly quote a literal for XPath usage.
-        /// </summary>
-        private static string QuoteForXPath(string value)
-        {
-            if (value == null) return "''";
-            if (!value.Contains("'")) return $"'{value}'";
-            if (!value.Contains("\"")) return $"\"{value}\"";
-            // If it has both single and double quotes, use concat(...) trick
-            var parts = value.Split('\'');
-            return "concat(" + string.Join(", \"'\", ", parts.Select(p => $"'{p}'")) + ")";
-        }
+        private static string QuoteForXPath(string value) => XPathHelper.Quote(value);
     }
 }

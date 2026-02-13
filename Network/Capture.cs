@@ -3,7 +3,7 @@ using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Support.UI;
 using System.Collections.Concurrent;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Network
 {
     /// <summary>
     /// Capture Network Traffic

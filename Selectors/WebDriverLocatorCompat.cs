@@ -2,8 +2,9 @@
 using OpenQA.Selenium.Support.UI;
 using System;
 using System.Linq;
+using SeleniumBy = OpenQA.Selenium.By;
 
-namespace SimpleSeleniumSupport
+namespace SimpleSeleniumSupport.Selectors
 {
     /// <summary>
     /// Compatibility locator extensions:
@@ -44,42 +45,42 @@ namespace SimpleSeleniumSupport
                     {
                         // 1) find <label> whose text matches (normalize-space)
                         var labelXpath = $"//label[normalize-space(string(.)) = {Quote(labelText)}]";
-                        var labels = drv.FindElements(By.XPath(labelXpath));
+                        var labels = drv.FindElements(SeleniumBy.XPath(labelXpath));
                         if (labels != null && labels.Count > 0)
                         {
                             var lab = labels.First();
                             var forAttr = lab.GetAttribute("for");
                             if (!string.IsNullOrEmpty(forAttr))
                             {
-                                var target = drv.FindElements(By.Id(forAttr)).FirstOrDefault();
+                                var target = drv.FindElements(SeleniumBy.Id(forAttr)).FirstOrDefault();
                                 if (target != null) return target;
                             }
                             // try descendant controls
-                            var nested = lab.FindElements(By.XPath(".//input|.//textarea|.//select"));
+                            var nested = lab.FindElements(SeleniumBy.XPath(".//input|.//textarea|.//select"));
                             if (nested != null && nested.Count > 0) return nested.First();
                         }
 
                         // 2) aria-label match
                         var ariaXpath = $"//*[@aria-label = {Quote(labelText)} or normalize-space(@aria-label) = {Quote(labelText)}]";
-                        var aria = drv.FindElements(By.XPath(ariaXpath)).FirstOrDefault();
+                        var aria = drv.FindElements(SeleniumBy.XPath(ariaXpath)).FirstOrDefault();
                         if (aria != null) return aria;
 
                         // 3) aria-labelledby: find element with text then find elements referencing it
                         var labelledXpath = $"//*[normalize-space(string(.)) = {Quote(labelText)}]";
-                        var labelElement = drv.FindElements(By.XPath(labelledXpath)).FirstOrDefault();
+                        var labelElement = drv.FindElements(SeleniumBy.XPath(labelledXpath)).FirstOrDefault();
                         if (labelElement != null)
                         {
                             var id = labelElement.GetAttribute("id");
                             if (!string.IsNullOrEmpty(id))
                             {
-                                var refEl = drv.FindElements(By.XPath($"//*[@aria-labelledby = '{id}']")).FirstOrDefault();
+                                var refEl = drv.FindElements(SeleniumBy.XPath($"//*[@aria-labelledby = '{id}']")).FirstOrDefault();
                                 if (refEl != null) return refEl;
                             }
                         }
 
                         // 4) fallback: find input elements whose nearest preceding label text contains the labelText (simple heuristic)
                         var neighborXpath = $"//label[contains(normalize-space(string(.)), {QuotePartial(labelText)})]//input|//label[contains(normalize-space(string(.)), {QuotePartial(labelText)})]//textarea|//label[contains(normalize-space(string(.)), {QuotePartial(labelText)})]//select";
-                        var neighbor = drv.FindElements(By.XPath(neighborXpath)).FirstOrDefault();
+                        var neighbor = drv.FindElements(SeleniumBy.XPath(neighborXpath)).FirstOrDefault();
                         if (neighbor != null) return neighbor;
 
                         return null;
@@ -132,7 +133,7 @@ namespace SimpleSeleniumSupport
                 {
                     try
                     {
-                        var e = drv.FindElements(By.XPath(xpath));
+                        var e = drv.FindElements(SeleniumBy.XPath(xpath));
                         return (e != null && e.Count > 0) ? e.First() : null;
                     }
                     catch { return null; }
@@ -181,7 +182,7 @@ namespace SimpleSeleniumSupport
                 {
                     try
                     {
-                        var e = drv.FindElements(By.XPath(xpath));
+                        var e = drv.FindElements(SeleniumBy.XPath(xpath));
                         return (e != null && e.Count > 0) ? e.First() : null;
                     }
                     catch { return null; }
@@ -229,7 +230,7 @@ namespace SimpleSeleniumSupport
                 {
                     try
                     {
-                        var e = drv.FindElements(By.XPath(xpath));
+                        var e = drv.FindElements(SeleniumBy.XPath(xpath));
                         return (e != null && e.Count > 0) ? e.First() : null;
                     }
                     catch { return null; }
@@ -252,22 +253,9 @@ namespace SimpleSeleniumSupport
 
         #region Utilities
 
-        private static string Quote(string s)
-        {
-            if (s == null) s = "";
-            if (!s.Contains("'")) return $"'{s}'";
-            if (!s.Contains("\"")) return $"\"{s}\"";
-            // fallback: concat parts
-            var parts = s.Split('\'');
-            return "concat(" + string.Join(", \"'\", ", parts.Select(p => $"'{p}'")) + ")";
-        }
+        private static string Quote(string s) => XPathHelper.Quote(s);
 
-        private static string QuotePartial(string s)
-        {
-            if (s == null) s = "";
-            // returns a lowercased literal for use in translate(..., tolower)
-            return $"'{s.ToLowerInvariant().Replace("'", "\\'")}'";
-        }
+        private static string QuotePartial(string s) => XPathHelper.QuotePartial(s);
 
         #endregion
     }
