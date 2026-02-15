@@ -1,5 +1,4 @@
 ﻿using OpenQA.Selenium;
-using OpenQA.Selenium.Support.UI;
 using SeleniumBy = OpenQA.Selenium.By;
 
 namespace SimpleSeleniumSupport.Selectors
@@ -179,7 +178,7 @@ namespace SimpleSeleniumSupport.Selectors
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
             var css = $"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']";
-            return FindElementWithWait(driver, SeleniumBy.CssSelector(css), options, throwOnTimeout: false);
+            return LocatorWaitHelper.FindElementWithWait(driver, SeleniumBy.CssSelector(css), options, throwOnTimeout: false);
         }
 
         /// <summary>
@@ -193,7 +192,7 @@ namespace SimpleSeleniumSupport.Selectors
         {
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
-            return FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options);
+            return LocatorWaitHelper.FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options);
         }
 
         /// <summary>
@@ -207,7 +206,7 @@ namespace SimpleSeleniumSupport.Selectors
         {
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
-            return FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options, throwOnTimeout: false);
+            return LocatorWaitHelper.FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options, throwOnTimeout: false);
         }
 
         #endregion
@@ -234,7 +233,7 @@ namespace SimpleSeleniumSupport.Selectors
 
             // Fallback heuristic
             var xpath = BuildRoleHeuristicXPath(role, options);
-            return FindElementsWithWait(driver, By.XPath(xpath), options, throwOnTimeout: false);
+            return LocatorWaitHelper.FindElementsWithWait(driver, By.XPath(xpath), options, throwOnTimeout: false);
         }
 
         /// <summary>
@@ -258,7 +257,7 @@ namespace SimpleSeleniumSupport.Selectors
                 ? $"//*[normalize-space(string(.)) = {QuoteForXPath(text)}]"
                 : $"//*[contains(translate(normalize-space(string(.)), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]";
 
-            return FindElementsWithWait(driver, By.XPath(xpath), options, throwOnTimeout: false);
+            return LocatorWaitHelper.FindElementsWithWait(driver, By.XPath(xpath), options, throwOnTimeout: false);
         }
 
         #endregion
@@ -525,129 +524,6 @@ findByRole: function(role, name, exact, caseSensitive){
             return string.Join(" | ", preds);
         }
 
-
-        /// <summary>
-        /// Finds the element with wait.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="by">The by.</param>
-        /// <param name="options">The options.</param>
-        /// <param name="throwOnTimeout">if set to <c>true</c> [throw on timeout].</param>
-        /// <returns></returns>
-        /// <exception cref="OpenQA.Selenium.WebDriverTimeoutException">Timed out after {options.TimeoutSeconds}s waiting for '{by}' ({options.Wait})</exception>
-        private static IWebElement FindElementWithWait(IWebDriver driver, By by, LocatorOptions options, bool throwOnTimeout = true)
-        {
-            options ??= DefaultOptions();
-            if (options.Wait == WaitUntil.None)
-            {
-                try { return driver.FindElement(by); }
-                catch { if (throwOnTimeout) throw; return null; }
-            }
-
-            var wait = new DefaultWait<IWebDriver>(driver)
-            {
-                Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds)),
-                PollingInterval = TimeSpan.FromMilliseconds(Math.Max(50, options.PollingMs))
-            };
-            wait.IgnoreExceptionTypes(typeof(NoSuchElementException), typeof(StaleElementReferenceException));
-
-            try
-            {
-                var el = wait.Until(drv =>
-                {
-                    try
-                    {
-                        var e = drv.FindElement(by);
-                        return EvaluateWaitCondition(e, options) ? e : null;
-                    }
-                    catch { return null; }
-                });
-                return el;
-            }
-            catch (WebDriverTimeoutException)
-            {
-                if (throwOnTimeout) throw new WebDriverTimeoutException($"Timed out after {options.TimeoutSeconds}s waiting for '{by}' ({options.Wait})");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Finds the elements with wait.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="by">The by.</param>
-        /// <param name="options">The options.</param>
-        /// <param name="throwOnTimeout">if set to <c>true</c> [throw on timeout].</param>
-        /// <returns></returns>
-        /// <exception cref="OpenQA.Selenium.WebDriverTimeoutException">Timed out after {options.TimeoutSeconds}s waiting for elements '{by}' ({options.Wait})</exception>
-        private static IReadOnlyCollection<IWebElement> FindElementsWithWait(IWebDriver driver, By by, LocatorOptions options, bool throwOnTimeout = true)
-        {
-            options ??= DefaultOptions();
-            if (options.Wait == WaitUntil.None)
-            {
-                var dd = driver.FindElements(by); return dd == null ? Array.Empty<IWebElement>() : dd.ToList().AsReadOnly();
-            }
-
-            var wait = new DefaultWait<IWebDriver>(driver)
-            {
-                Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds)),
-                PollingInterval = TimeSpan.FromMilliseconds(Math.Max(50, options.PollingMs))
-            };
-            wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
-
-            try
-            {
-                var elems = wait.Until(drv =>
-                {
-                    try
-                    {
-                        var list = drv.FindElements(by);
-                        if (list == null || list.Count == 0) return null;
-                        if (options.Wait == WaitUntil.Exists) return list.ToList().AsReadOnly();
-                        var ok = list.Where(el => EvaluateWaitCondition(el, options)).ToList();
-                        return ok.Count > 0 ? ok.AsReadOnly() : null;
-                    }
-                    catch { return null; }
-                });
-                return elems;
-            }
-            catch (WebDriverTimeoutException)
-            {
-                if (throwOnTimeout) throw new WebDriverTimeoutException($"Timed out after {options.TimeoutSeconds}s waiting for elements '{by}' ({options.Wait})");
-                return Array.Empty<IWebElement>();
-            }
-        }
-
-        /// <summary>
-        /// Evaluates the wait condition.
-        /// </summary>
-        /// <param name="el">The el.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        private static bool EvaluateWaitCondition(IWebElement el, LocatorOptions options)
-        {
-            switch (options.Wait)
-            {
-                case WaitUntil.Exists: return true;
-                case WaitUntil.Visible: return SafeDisplayed(el);
-                case WaitUntil.Enabled: return SafeDisplayed(el) && SafeEnabled(el);
-                case WaitUntil.Clickable: return SafeDisplayed(el) && SafeEnabled(el);
-                default: return true;
-            }
-        }
-
-        /// <summary>
-        /// Safes the displayed.
-        /// </summary>
-        /// <param name="el">The el.</param>
-        /// <returns></returns>
-        private static bool SafeDisplayed(IWebElement el) { try { return el.Displayed; } catch { return false; } }
-        /// <summary>
-        /// Safes the enabled.
-        /// </summary>
-        /// <param name="el">The el.</param>
-        /// <returns></returns>
-        private static bool SafeEnabled(IWebElement el) { try { return el.Enabled; } catch { return false; } }
         #endregion
     }
 }
