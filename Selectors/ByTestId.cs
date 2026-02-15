@@ -19,6 +19,18 @@ namespace SimpleSeleniumSupport.Selectors
             _options = options ?? new LocatorOptions();
         }
 
+        public ByTestId(string testId,
+            int timeoutSeconds = 10,
+            int pollingMs = 200,
+            WaitUntil wait = WaitUntil.Visible)
+            : this(testId, new LocatorOptions
+            {
+                TimeoutSeconds = timeoutSeconds,
+                PollingMs = pollingMs,
+                Wait = wait
+            })
+        { }
+
         public override IWebElement FindElement(ISearchContext context)
         {
             var elements = FindElements(context);

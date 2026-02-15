@@ -21,6 +21,22 @@ namespace SimpleSeleniumSupport.Selectors
             _options = options ?? new LocatorOptions();
         }
 
+        public ByRole(string role, string name = null,
+            bool exactMatch = false,
+            bool caseSensitive = false,
+            int timeoutSeconds = 10,
+            int pollingMs = 200,
+            WaitUntil wait = WaitUntil.Visible)
+            : this(role, name, new LocatorOptions
+            {
+                ExactMatch = exactMatch,
+                CaseSensitive = caseSensitive,
+                TimeoutSeconds = timeoutSeconds,
+                PollingMs = pollingMs,
+                Wait = wait
+            })
+        { }
+
         public override IWebElement FindElement(ISearchContext context)
         {
             var elements = FindElements(context);

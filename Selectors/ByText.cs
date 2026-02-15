@@ -13,8 +13,24 @@ namespace SimpleSeleniumSupport.Selectors
         public ByText(string text, LocatorOptions options)
         {
             _text = text;
-            _options = options;
+            _options = options ?? new LocatorOptions();
         }
+
+        public ByText(string text,
+            bool exactMatch = false,
+            bool caseSensitive = false,
+            int timeoutSeconds = 10,
+            int pollingMs = 200,
+            WaitUntil wait = WaitUntil.Visible)
+            : this(text, new LocatorOptions
+            {
+                ExactMatch = exactMatch,
+                CaseSensitive = caseSensitive,
+                TimeoutSeconds = timeoutSeconds,
+                PollingMs = pollingMs,
+                Wait = wait
+            })
+        { }
 
         public override IWebElement FindElement(ISearchContext context)
         {
