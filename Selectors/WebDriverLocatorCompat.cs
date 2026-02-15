@@ -73,7 +73,7 @@ namespace SimpleSeleniumSupport.Selectors
                             var id = labelElement.GetAttribute("id");
                             if (!string.IsNullOrEmpty(id))
                             {
-                                var refEl = drv.FindElements(SeleniumBy.XPath($"//*[@aria-labelledby = '{id}']")).FirstOrDefault();
+                                var refEl = drv.FindElements(SeleniumBy.XPath($"//*[@aria-labelledby = {Quote(id)}]")).FirstOrDefault();
                                 if (refEl != null) return refEl;
                             }
                         }

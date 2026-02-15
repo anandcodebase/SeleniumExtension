@@ -18,7 +18,7 @@ namespace SimpleSeleniumSupport.Selectors
                 "radio" => "//input[@type='radio']",
                 "img" => "//img",
                 "heading" => "//h1|//h2|//h3|//h4|//h5|//h6",
-                _ => $"//*[@role='{role}']"
+                _ => $"//*[@role={XPathHelper.Quote(role)}]"
             };
         }
 

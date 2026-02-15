@@ -25,17 +25,10 @@ namespace SimpleSeleniumSupport.Selectors
             return new ByText(text, options);
         }
 
-        public static OpenQA.Selenium.By TestId(string testId)
+        public static OpenQA.Selenium.By TestId(string testId, LocatorOptions options = null)
         {
-            var css =
-                $"[data-testid='{EscapeCss(testId)}']," +
-                $"[data-test-id='{EscapeCss(testId)}']," +
-                $"[data-test='{EscapeCss(testId)}']";
-
-            return OpenQA.Selenium.By.CssSelector(css);
+            options ??= new LocatorOptions();
+            return new ByTestId(testId, options);
         }
-
-        private static string EscapeCss(string value)
-            => value?.Replace("'", "\\'") ?? string.Empty;
     }
 }

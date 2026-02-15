@@ -26,16 +26,14 @@ namespace SimpleSeleniumSupport.Selectors
 
         public override ReadOnlyCollection<IWebElement> FindElements(ISearchContext context)
         {
-            if (context is not IWebDriver driver)
-                return new ReadOnlyCollection<IWebElement>(Array.Empty<IWebElement>());
-
-            var lowered = _text.ToLowerInvariant();
+            var prefix = context is IWebDriver ? "//" : ".//";
 
             var xpath = _options.ExactMatch
-                ? $"//*[normalize-space(.)='{_text}']"
-                : $"//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{lowered}')]";
+                ? $"{prefix}*[normalize-space(.)={XPathHelper.Quote(_text)}]"
+                : $"{prefix}*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {XPathHelper.QuotePartial(_text)})]";
 
-            return new ReadOnlyCollection<IWebElement>(driver.FindElements(OpenQA.Selenium.By.XPath(xpath)).ToList());
+            return new ReadOnlyCollection<IWebElement>(
+                context.FindElements(OpenQA.Selenium.By.XPath(xpath)).ToList());
         }
 
         public override string ToString() => $"By.Text('{_text}')";

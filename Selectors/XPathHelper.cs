@@ -27,7 +27,7 @@ namespace SimpleSeleniumSupport.Selectors
         public static string QuotePartial(string value)
         {
             if (value == null) value = "";
-            return $"'{value.ToLowerInvariant().Replace("'", "\\'")}'";
+            return Quote(value.ToLowerInvariant());
         }
     }
 }

@@ -118,61 +118,6 @@ namespace SimpleSeleniumSupport.Selectors
             return FindElementsByRoleAndName(driver, role, accessibleName, options);
         }
 
-        /// <summary>
-        /// Finds the elements by exact text.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="text">The text.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        private static IReadOnlyCollection<IWebElement> FindElementsByExactText(IWebDriver driver, string text, LocatorOptions options)
-        {
-            string loweredText = text.ToLowerInvariant();
-
-            // XPath that finds the smallest element that *directly* contains the text node
-            // and avoids matching ancestor elements like <body> or <div> containing many children.
-            string xpath = options.ExactMatch
-                ? $"//*[normalize-space(text()) = {QuoteForXPath(text)}]"
-                : $"//*[text()[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(loweredText)})]]";
-
-            var elements = driver.FindElements(By.XPath(xpath))
-                                 .Where(el => IsBestTextMatch(el, text, options))
-                                 .ToList();
-
-            return elements.AsReadOnly();
-        }
-        /// <summary>
-        /// Ensures the element is a good text match — not just a container that happens to include the text.
-        /// </summary>
-        /// <param name="element">The element.</param>
-        /// <param name="text">The text.</param>
-        /// <param name="options">The options.</param>
-        /// <returns>
-        ///   <c>true</c> if [is best text match] [the specified element]; otherwise, <c>false</c>.
-        /// </returns>
-        private static bool IsBestTextMatch(IWebElement element, string text, LocatorOptions options)
-        {
-            try
-            {
-                string content = element.Text?.Trim() ?? string.Empty;
-                if (string.IsNullOrEmpty(content)) return false;
-
-                // If the element has child elements that also contain the text, skip it.
-                var childrenWithSameText = element.FindElements(SeleniumBy.XPath($".//*[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]"));
-                if (childrenWithSameText.Count > 0) return false;
-
-                // Check match logic
-                if (options.ExactMatch)
-                    return string.Equals(content, text, options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
-                else
-                    return content.IndexOf(text, options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) >= 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static string QuoteForXPath(string value) => XPathHelper.Quote(value);
 
         /// <summary>
@@ -232,8 +177,9 @@ namespace SimpleSeleniumSupport.Selectors
         public static IWebElement TryGetByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
         {
             options ??= DefaultOptions();
-            var css = $"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']";
-            return FindElementWithWait(driver, By.XPath(css), options, throwOnTimeout: false);
+            var escaped = CssEscaper.EscapeAttributeValue(testId);
+            var css = $"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']";
+            return FindElementWithWait(driver, SeleniumBy.CssSelector(css), options, throwOnTimeout: false);
         }
 
         /// <summary>
@@ -246,7 +192,8 @@ namespace SimpleSeleniumSupport.Selectors
         public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
         {
             options ??= DefaultOptions();
-            return FindElementsWithWait(driver, SeleniumBy.XPath($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options);
+            var escaped = CssEscaper.EscapeAttributeValue(testId);
+            return FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options);
         }
 
         /// <summary>
@@ -259,7 +206,8 @@ namespace SimpleSeleniumSupport.Selectors
         public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
         {
             options ??= DefaultOptions();
-            return FindElementsWithWait(driver, SeleniumBy.XPath($"[data-testid='{EscapeCss(testId)}'],[data-test-id='{EscapeCss(testId)}'],[data-test='{EscapeCss(testId)}']"), options, throwOnTimeout: false);
+            var escaped = CssEscaper.EscapeAttributeValue(testId);
+            return FindElementsWithWait(driver, SeleniumBy.CssSelector($"[data-testid='{escaped}'],[data-test-id='{escaped}'],[data-test='{escaped}']"), options, throwOnTimeout: false);
         }
 
         #endregion
@@ -307,40 +255,10 @@ namespace SimpleSeleniumSupport.Selectors
             }
 
             var xpath = options.ExactMatch
-                ? $"//*[normalize-space(string(.)) = {QuoteJsString(text)}]"
-                : $"//*[contains(translate(normalize-space(string(.)), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteJsString(text.ToLowerInvariant())})]";
+                ? $"//*[normalize-space(string(.)) = {QuoteForXPath(text)}]"
+                : $"//*[contains(translate(normalize-space(string(.)), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(text.ToLowerInvariant())})]";
 
             return FindElementsWithWait(driver, By.XPath(xpath), options, throwOnTimeout: false);
-        }
-
-        /// <summary>
-        /// Finds the name of the elements by accessible.
-        /// </summary>
-        /// <param name="driver">The driver.</param>
-        /// <param name="accessibleName">Name of the accessible.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        private static IReadOnlyCollection<IWebElement> FindElementsByAccessibleName(IWebDriver driver, string accessibleName, LocatorOptions options)
-        {
-            options ??= DefaultOptions();
-
-            if (driver is IJavaScriptExecutor js)
-            {
-                var found = ExecuteAccessibleNameSearch(js, accessibleName, options);
-                if (found != null && found.Count > 0) return found;
-            }
-
-            var preds = new List<string>
-            {
-                BuildAttrContainsXPath("aria-label", accessibleName, options),
-                BuildAttrContainsXPath("title", accessibleName, options),
-                BuildAttrContainsXPath("alt", accessibleName, options),
-                BuildAttrContainsXPath("placeholder", accessibleName, options),
-                $"//*[contains(translate(normalize-space(string(.)), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteJsString(accessibleName.ToLowerInvariant())})]"
-            };
-
-            var union = string.Join(" | ", preds);
-            return FindElementsWithWait(driver, By.XPath(union), options, throwOnTimeout: false);
         }
 
         #endregion
@@ -575,21 +493,7 @@ findByRole: function(role, name, exact, caseSensitive){
 
         #endregion
 
-        #region Fallback XPath utilities & Wait helpers (unchanged from prior file)
-        /// <summary>
-        /// Builds the attribute contains x path.
-        /// </summary>
-        /// <param name="attr">The attribute.</param>
-        /// <param name="value">The value.</param>
-        /// <param name="options">The options.</param>
-        /// <returns></returns>
-        private static string BuildAttrContainsXPath(string attr, string value, LocatorOptions options)
-        {
-            if (string.IsNullOrEmpty(value)) return $"//*[@{attr}]";
-            if (options.ExactMatch) return $"//*[@{attr} = {QuoteJsString(value)}]";
-            if (options.CaseSensitive) return $"//*[contains(@{attr}, {QuoteJsString(value)})]";
-            return $"//*[contains(translate(@{attr}, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteJsString(value.ToLowerInvariant())})]";
-        }
+        #region Fallback XPath utilities & Wait helpers
 
         /// <summary>
         /// Builds the role heuristic x path.
@@ -600,8 +504,8 @@ findByRole: function(role, name, exact, caseSensitive){
         private static string BuildRoleHeuristicXPath(string role, LocatorOptions options)
         {
             var preds = new List<string>();
-            if (options.ExactMatch) preds.Add($"//*[@role = {QuoteJsString(role)}]");
-            else preds.Add($"//*[contains(translate(@role,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'), {QuoteJsString(role.ToLowerInvariant())})]");
+            if (options.ExactMatch) preds.Add($"//*[@role = {QuoteForXPath(role)}]");
+            else preds.Add($"//*[contains(translate(@role,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(role.ToLowerInvariant())})]");
 
             var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
             {
@@ -621,18 +525,6 @@ findByRole: function(role, name, exact, caseSensitive){
             return string.Join(" | ", preds);
         }
 
-        /// <summary>
-        /// Quotes the js string.
-        /// </summary>
-        /// <param name="s">The s.</param>
-        /// <returns></returns>
-        private static string QuoteJsString(string s) => s == null ? "''" : $"'{s.Replace("'", "\\'")}'";
-        /// <summary>
-        /// Escapes the CSS.
-        /// </summary>
-        /// <param name="s">The s.</param>
-        /// <returns></returns>
-        private static string EscapeCss(string s) => s?.Replace("'", "\\'") ?? "";
 
         /// <summary>
         /// Finds the element with wait.
