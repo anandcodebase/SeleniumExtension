@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace SimpleSeleniumSupport.Selectors
 {
-    internal sealed class ByText : OpenQA.Selenium.By
+    public sealed class ByText : OpenQA.Selenium.By
     {
         private readonly string _text;
         private readonly LocatorOptions _options;

@@ -47,6 +47,13 @@ namespace SimpleSeleniumSupport.AI
         public static bool UseCache { get; set; } = true;
 
         /// <summary>
+        /// Optional callback invoked when an exception is swallowed internally.
+        /// Use this to route diagnostics to your test framework's logger.
+        /// Parameters: (exception, context message)
+        /// </summary>
+        public static Action<Exception, string> OnError { get; set; }
+
+        /// <summary>
         /// Find a single element by a natural language description (immediate).
         /// Throws NoSuchElementException if not found or AI returns invalid result.
         /// </summary>
@@ -75,9 +82,9 @@ namespace SimpleSeleniumSupport.AI
                 {
                     return driver.FindElement(By.XPath(cachedXPath));
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Cache stale - fallthrough to regenerate
+                    OnError?.Invoke(ex, $"AI selector cache stale for '{description}', regenerating");
                     _selectorCache.TryRemove(key, out _);
                 }
             }
@@ -88,8 +95,7 @@ namespace SimpleSeleniumSupport.AI
                 try
                 {
                     Console.WriteLine($"🤖 AI Find (attempt {attempt + 1}) for '{description}' using model '{ollamaModel}'");
-                    string pageHtml = driver.PageSource;
-                    string prompt = BuildPromptForSelector(pageHtml, description);
+                    string prompt = BuildPromptForSelector(driver, description);
 
                     string xpath = OllamaClient.Generate(prompt, ollamaModel);
                     xpath = NormalizeXpath(xpath);
@@ -146,8 +152,9 @@ namespace SimpleSeleniumSupport.AI
                     var el = FindElementByAI(d, description, ollamaModel, DefaultRetries);
                     return (el != null && el.Displayed) ? el : null;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    OnError?.Invoke(ex, $"WaitAndFindByAI polling attempt failed for '{description}'");
                     return null;
                 }
             });
@@ -163,8 +170,7 @@ namespace SimpleSeleniumSupport.AI
         /// <returns></returns>
         public static IReadOnlyCollection<IWebElement> FindElementsByAI(this IWebDriver driver, string description, string ollamaModel = "llama3")
         {
-            string pageHtml = driver.PageSource;
-            string prompt = BuildPromptForSelector(pageHtml, description) + "\nNote: If multiple matching elements exist, return an XPath that selects all matching nodes.";
+            string prompt = BuildPromptForSelector(driver, description) + "\nNote: If multiple matching elements exist, return an XPath that selects all matching nodes.";
 
             string xpath = OllamaClient.Generate(prompt, ollamaModel);
             xpath = NormalizeXpath(xpath);
@@ -247,7 +253,7 @@ namespace SimpleSeleniumSupport.AI
                     var el = driver.FindElement(By.XPath(xpath));
                     if (el != null) return el;
                 }
-                catch { /* continue */ }
+                catch (Exception ex) { OnError?.Invoke(ex, $"Heuristic tag search failed for <{tag}>"); }
             }
 
             // try id or name token
@@ -259,31 +265,26 @@ namespace SimpleSeleniumSupport.AI
                     var el = driver.FindElement(By.XPath(byId));
                     if (el != null) return el;
                 }
-                catch { }
+                catch (Exception ex) { OnError?.Invoke(ex, $"Heuristic ID search failed for token '{t}'"); }
             }
 
             return null;
         }
 
-        private static string BuildPromptForSelector(string pageHtml, string description)
+        private static string BuildPromptForSelector(IWebDriver driver, string description)
         {
-            // Keep prompt concise; the full page HTML is passed but you can later add an option to trim it.
+            string domJson = DomTrimmer.TrimDom(driver);
             return $"""
             You are an expert in web automation and XPath generation.
-            Your task is to analyze the provided HTML and generate a single, robust XPath selector for the element described.
-            /// <summary>
-            /// Initializes a new instance of the <see cref="$Program"/> class.
-            /// </summary>
+            Your task is to analyze the provided DOM snapshot and generate a single, robust XPath selector for the element described.
             Prefer unique attributes like 'id', 'data-testid', or 'name'. Avoid brittle, absolute paths.
             Respond with ONLY the XPath string and nothing else.
 
             --- ELEMENT DESCRIPTION ---
             {description}
 
-            --- PAGE HTML ---
-            ```html
-            {pageHtml}
-            ```
+            --- PAGE DOM (compact JSON: tag, text, attrs) ---
+            {domJson}
 
             --- XPATH SELECTOR ---
             """;

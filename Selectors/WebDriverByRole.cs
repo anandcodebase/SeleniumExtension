@@ -1,4 +1,6 @@
 ﻿using OpenQA.Selenium;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using SeleniumBy = OpenQA.Selenium.By;
 
 namespace SimpleSeleniumSupport.Selectors
@@ -11,6 +13,18 @@ namespace SimpleSeleniumSupport.Selectors
         #region Types & Config
 
         
+
+        /// <summary>
+        /// Optional callback invoked when an exception is swallowed during JS injection or element search.
+        /// Use this to route diagnostics to your test framework's logger.
+        /// Parameters: (exception, context message)
+        /// </summary>
+        public static Action<Exception, string> OnError { get; set; }
+
+        // Tracks which (driver instance, page URL) pairs have already had the helper injected.
+        // ConditionalWeakTable ensures no memory leak when a driver instance is GC'd.
+        // Inner ConcurrentDictionary<url, bool> handles page navigation's correctly.
+        private static readonly ConditionalWeakTable<object, ConcurrentDictionary<string, bool>> _injectionCache = new();
 
         /// <summary>
         /// Defaults the options.
@@ -272,15 +286,24 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="js">The js.</param>
         private static void EnsureAccessibilityHelperInjected(IJavaScriptExecutor js)
         {
+            // Fast path: skip the JS round-trip if we know we injected for this driver+URL already.
+            string currentUrl = (js is IWebDriver wd) ? (wd.Url ?? "") : "";
+            var urlCache = _injectionCache.GetOrCreateValue(js);
+            if (urlCache.ContainsKey(currentUrl)) return;
+
             try
             {
-                // quick check if helper exists
+                // Confirm the helper is actually present on the live page (guards against navigation).
                 var exists = js.ExecuteScript("return (typeof window.__ssa_helper !== 'undefined' && typeof window.__ssa_helper.findByRole === 'function');");
-                if (exists is bool b && b) return; // already injected
+                if (exists is bool b && b)
+                {
+                    urlCache[currentUrl] = true;
+                    return;
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore and attempt injection
+                OnError?.Invoke(ex, "JS helper existence check failed, attempting injection");
             }
 
             // injection script: defines window.__ssa_helper with two functions: findByRole and findByName
@@ -422,10 +445,11 @@ findByRole: function(role, name, exact, caseSensitive){
             try
             {
                 js.ExecuteScript(inject);
+                urlCache[currentUrl] = true;
             }
-            catch
+            catch (Exception ex)
             {
-                // swallow injection errors: fallbacks will work
+                OnError?.Invoke(ex, "JS accessibility helper injection failed, XPath fallback will be used");
             }
         }
 
@@ -445,8 +469,9 @@ findByRole: function(role, name, exact, caseSensitive){
                 var raw = js.ExecuteScript("return (window.__ssa_helper && window.__ssa_helper.findByRole) ? window.__ssa_helper.findByRole(arguments[0], arguments[1], arguments[2], arguments[3]) : [];", role, name, options.ExactMatch, options.CaseSensitive);
                 return ScriptResultToElementList(raw);
             }
-            catch
+            catch (Exception ex)
             {
+                OnError?.Invoke(ex, $"JS role search failed for role='{role}' name='{name}', using XPath fallback");
                 return Array.Empty<IWebElement>();
             }
         }
@@ -466,8 +491,9 @@ findByRole: function(role, name, exact, caseSensitive){
                 var raw = js.ExecuteScript("return (window.__ssa_helper && window.__ssa_helper.findByName) ? window.__ssa_helper.findByName(arguments[0], arguments[1], arguments[2]) : [];", name, options.ExactMatch, options.CaseSensitive);
                 return ScriptResultToElementList(raw);
             }
-            catch
+            catch (Exception ex)
             {
+                OnError?.Invoke(ex, $"JS name search failed for name='{name}', using XPath fallback");
                 return Array.Empty<IWebElement>();
             }
         }

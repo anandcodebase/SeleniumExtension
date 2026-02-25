@@ -28,12 +28,12 @@ namespace SimpleSeleniumSupport.AI
         public static string ApiUrl { get; set; } = "http://localhost:11434/api/generate";
 
         /// <summary>
-        /// Timeout for Ollama requests (ms). Default 10s.
+        /// Timeout for Ollama requests (ms). Default 30s.
         /// </summary>
         /// <value>
         /// The timeout ms.
         /// </value>
-        public static int TimeoutMs { get; set; } = 10000;
+        public static int TimeoutMs { get; set; } = 30000;
 
         /// <summary>
         /// If true, the client will return a mocked response for testing.
