@@ -11,7 +11,7 @@
         /// <value>
         /// The timeout seconds.
         /// </value>
-        public int TimeoutSeconds { get; set; } = 10;
+        public int TimeoutSeconds { get; set; } = SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds;
         /// <summary>
         /// Gets or sets a value indicating whether [exact match].
         /// </summary>

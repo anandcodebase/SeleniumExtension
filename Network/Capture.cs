@@ -8,8 +8,9 @@ namespace SimpleSeleniumSupport.Network
     /// <summary>
     /// Capture Network Traffic
     /// </summary>
-    public class Capture
+    public class Capture : IDisposable
     {
+        private bool _disposed;
         /// <summary>
         /// The driver
         /// </summary>
@@ -44,8 +45,15 @@ namespace SimpleSeleniumSupport.Network
         /// <summary>
         /// Starts monitoring network traffic synchronously.
         /// </summary>
-        public void StartMonitoring()
+        /// <param name="clearPrevious">
+        /// When <c>true</c>, clears any previously captured request/response data before
+        /// starting. Useful between tests to avoid data from prior sessions leaking in.
+        /// </param>
+        public void StartMonitoring(bool clearPrevious = false)
         {
+            if (clearPrevious)
+                ClearCapturedData();
+
             if (_networkInterceptor != null)
             {
                 Console.WriteLine("Monitoring is already active.");
@@ -158,8 +166,10 @@ namespace SimpleSeleniumSupport.Network
         /// <param name="urlPart">The URL part.</param>
         /// <param name="timeoutInSeconds">The timeout in seconds.</param>
         /// <returns></returns>
-        public FullNetworkInfo WaitForRequest(string urlPart, int timeoutInSeconds = 30)
+        public FullNetworkInfo WaitForRequest(string urlPart, int timeoutInSeconds = -1)
         {
+            if (timeoutInSeconds <= 0)
+                timeoutInSeconds = SimpleSeleniumSupportDefaults.NetworkWaitTimeoutSeconds;
             var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutInSeconds));
             return wait.Until(d =>
             {
@@ -169,11 +179,37 @@ namespace SimpleSeleniumSupport.Network
         }
 
         /// <summary>
+        /// Waits for a network request that satisfies an arbitrary predicate to complete.
+        /// Use this overload for filtering by HTTP method, status code, regex URL patterns, etc.
+        /// </summary>
+        /// <param name="predicate">
+        /// A function that receives a <see cref="FullNetworkInfo"/> and returns <c>true</c>
+        /// when the desired request has been matched. Only requests that already have a
+        /// response (i.e. <c>ResponseStatusCode != 0</c>) are evaluated.
+        /// </param>
+        /// <param name="timeoutSeconds">
+        /// Maximum seconds to wait. Defaults to
+        /// <see cref="SimpleSeleniumSupportDefaults.NetworkWaitTimeoutSeconds"/>.
+        /// </param>
+        /// <returns>The first matching <see cref="FullNetworkInfo"/>.</returns>
+        public FullNetworkInfo WaitForRequest(Func<FullNetworkInfo, bool> predicate, int timeoutSeconds = -1)
+        {
+            if (timeoutSeconds <= 0)
+                timeoutSeconds = SimpleSeleniumSupportDefaults.NetworkWaitTimeoutSeconds;
+            var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutSeconds));
+            return wait.Until(d =>
+                GetCombinedNetworkInfo()
+                    .FirstOrDefault(info => info.ResponseStatusCode != 0 && predicate(info)));
+        }
+
+        /// <summary>
         /// Waits for all currently tracked network requests to complete.
         /// </summary>
         /// <param name="timeoutInSeconds">The timeout in seconds.</param>
-        public void WaitForAllRequests(int timeoutInSeconds = 30)
+        public void WaitForAllRequests(int timeoutInSeconds = -1)
         {
+            if (timeoutInSeconds <= 0)
+                timeoutInSeconds = SimpleSeleniumSupportDefaults.NetworkWaitTimeoutSeconds;
             var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutInSeconds));
             wait.Until(d =>
             {
@@ -190,6 +226,18 @@ namespace SimpleSeleniumSupport.Network
             _requestSentMap.Clear();
             _responseReceivedMap.Clear();
             Console.WriteLine("Cleared all captured network data.");
+        }
+
+        /// <summary>
+        /// Stops monitoring and releases resources. Enables use in a <c>using</c> block
+        /// so that monitoring is automatically torn down even when tests throw.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            if (_networkInterceptor != null)
+                StopMonitoring();
         }
     }
 }

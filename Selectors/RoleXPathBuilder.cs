@@ -6,7 +6,7 @@ namespace SimpleSeleniumSupport.Selectors
 {
     internal static class RoleXPathBuilder
     {
-        public static string Build(string role, LocatorOptions options)
+        internal static string Build(string role, LocatorOptions options)
         {
             var r = role.ToLowerInvariant();
             return r switch

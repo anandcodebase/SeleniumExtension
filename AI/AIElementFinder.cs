@@ -37,7 +37,7 @@ namespace SimpleSeleniumSupport.AI
         /// <value>
         /// The default wait timeout seconds.
         /// </value>
-        public static int DefaultWaitTimeoutSeconds { get; set; } = 15;
+        public static int DefaultWaitTimeoutSeconds { get; set; } = SimpleSeleniumSupportDefaults.WaitTimeoutSeconds;
         /// <summary>
         /// Gets or sets a value indicating whether [use cache].
         /// </summary>

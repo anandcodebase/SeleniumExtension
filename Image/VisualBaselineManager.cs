@@ -25,8 +25,8 @@ namespace SimpleSeleniumSupport.Image
 
             var baselinePath = Path.Combine(dir, "baseline.png");
 
-            bool autoBaseline =
-                Environment.GetEnvironmentVariable(EnvAutoBaseline) == "true";
+            var autoBaselineEnv = Environment.GetEnvironmentVariable(EnvAutoBaseline);
+            bool autoBaseline = autoBaselineEnv == "1" || autoBaselineEnv == "true";
 
             bool exists = File.Exists(baselinePath);
             bool created = false;
@@ -36,7 +36,8 @@ namespace SimpleSeleniumSupport.Image
             {
                 if (!autoBaseline)
                     throw new InvalidOperationException(
-                        $"Baseline missing for {testId}. Set AUTO_BASELINE=true.");
+                        $"Baseline not found for '{testId}'. " +
+                        $"Set the environment variable AUTO_BASELINE=1 to create it automatically.");
 
                 File.Copy(actualImagePath, baselinePath);
                 created = true;
