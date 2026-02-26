@@ -1,4 +1,5 @@
 using OpenQA.Selenium;
+using OpenQA.Selenium.Support.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -171,6 +172,94 @@ namespace SimpleSeleniumSupport.Selectors
             options ??= new LocatorOptions();
             var by = new ByTestId(testId, options);
             return LocatorWaitHelper.FindElementsWithWait(element, by, options, throwOnTimeout: false);
+        }
+
+        #endregion
+
+        #region Element waits
+
+        /// <summary>
+        /// Waits until this element is visible (Displayed == true).
+        /// Returns the element so calls can be chained.
+        /// </summary>
+        /// <param name="element">The element to wait on.</param>
+        /// <param name="timeoutSeconds">
+        /// Maximum wait time. Defaults to
+        /// <see cref="SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds"/>.
+        /// </param>
+        /// <param name="pollingMs">How often to poll. Defaults to 200 ms.</param>
+        /// <returns>The same element, for fluent chaining.</returns>
+        /// <exception cref="WebDriverTimeoutException">
+        /// Thrown if the element is not visible within the timeout.
+        /// </exception>
+        public static IWebElement WaitUntilVisible(
+            this IWebElement element,
+            int timeoutSeconds = -1,
+            int pollingMs = 200)
+        {
+            if (timeoutSeconds <= 0)
+                timeoutSeconds = SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds;
+
+            var wait = new DefaultWait<IWebElement>(element)
+            {
+                Timeout = TimeSpan.FromSeconds(timeoutSeconds),
+                PollingInterval = TimeSpan.FromMilliseconds(Math.Max(50, pollingMs))
+            };
+            wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
+
+            try
+            {
+                wait.Until(el => LocatorWaitHelper.SafeDisplayed(el));
+            }
+            catch (WebDriverTimeoutException)
+            {
+                throw new WebDriverTimeoutException(
+                    $"Element was not visible after {timeoutSeconds}s.");
+            }
+
+            return element;
+        }
+
+        /// <summary>
+        /// Waits until this element is both visible and enabled (Displayed &amp;&amp; Enabled).
+        /// Returns the element so calls can be chained.
+        /// </summary>
+        /// <param name="element">The element to wait on.</param>
+        /// <param name="timeoutSeconds">
+        /// Maximum wait time. Defaults to
+        /// <see cref="SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds"/>.
+        /// </param>
+        /// <param name="pollingMs">How often to poll. Defaults to 200 ms.</param>
+        /// <returns>The same element, for fluent chaining.</returns>
+        /// <exception cref="WebDriverTimeoutException">
+        /// Thrown if the element is not clickable within the timeout.
+        /// </exception>
+        public static IWebElement WaitUntilClickable(
+            this IWebElement element,
+            int timeoutSeconds = -1,
+            int pollingMs = 200)
+        {
+            if (timeoutSeconds <= 0)
+                timeoutSeconds = SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds;
+
+            var wait = new DefaultWait<IWebElement>(element)
+            {
+                Timeout = TimeSpan.FromSeconds(timeoutSeconds),
+                PollingInterval = TimeSpan.FromMilliseconds(Math.Max(50, pollingMs))
+            };
+            wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
+
+            try
+            {
+                wait.Until(el => LocatorWaitHelper.SafeDisplayed(el) && LocatorWaitHelper.SafeEnabled(el));
+            }
+            catch (WebDriverTimeoutException)
+            {
+                throw new WebDriverTimeoutException(
+                    $"Element was not clickable after {timeoutSeconds}s.");
+            }
+
+            return element;
         }
 
         #endregion

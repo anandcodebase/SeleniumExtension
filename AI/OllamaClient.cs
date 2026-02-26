@@ -52,95 +52,107 @@ namespace SimpleSeleniumSupport.AI
         public static Action<HttpRequestMessage> ConfigureRequest { get; set; }
 
         /// <summary>
-        /// Generates the specified prompt.
+        /// Generates the specified prompt (synchronous wrapper around <see cref="GenerateAsync"/>).
         /// </summary>
         /// <param name="prompt">The prompt.</param>
         /// <param name="model">The model.</param>
         /// <returns></returns>
-        /// <exception cref="System.Net.Http.HttpRequestException">
-        /// Ollama request timed out after {TimeoutMs}ms.
-        /// or
-        /// Could not connect to Ollama at {ApiUrl}. Is Ollama running? Details: {ex.Message}
-        /// </exception>
-        /// <exception cref="System.InvalidOperationException">An unexpected error occurred during AI generation: {ex.Message}</exception>
         public static string Generate(string prompt, string model)
+            => GenerateAsync(prompt, model, CancellationToken.None).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Sends <paramref name="prompt"/> to Ollama and returns the model's text response.
+        /// Suitable for use in async test frameworks (xUnit, NUnit 3) without
+        /// deadlock-prone <c>.Result</c> / <c>.GetAwaiter().GetResult()</c> calls.
+        /// </summary>
+        /// <param name="prompt">The prompt.</param>
+        /// <param name="model">The Ollama model name (e.g. "llama3").</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>The model's text response.</returns>
+        /// <exception cref="System.Net.Http.HttpRequestException">
+        /// Thrown when Ollama is unreachable or the request times out.
+        /// </exception>
+        /// <exception cref="System.InvalidOperationException">
+        /// Thrown on unexpected errors during generation.
+        /// </exception>
+        public static async Task<string> GenerateAsync(
+            string prompt, string model, CancellationToken cancellationToken = default)
         {
             if (MockMode)
             {
                 Console.WriteLine("[OllamaClient] MockMode is ON - returning placeholder response.");
-                return "//body"; // very simple mock
+                return "//body";
             }
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeoutMs);
 
             try
             {
-                using var cts = new CancellationTokenSource(TimeoutMs);
-                var payload = new
-                {
-                    model,
-                    prompt,
-                    stream = false
-                };
-
+                var payload = new { model, prompt, stream = false };
                 string jsonPayload = JsonSerializer.Serialize(payload);
+
                 var request = new HttpRequestMessage(HttpMethod.Post, ApiUrl)
                 {
                     Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
                 };
-
                 ConfigureRequest?.Invoke(request);
 
-                var task = _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cts.Token);
-                task.Wait(cts.Token);
-                var response = task.Result;
+                var response = await _httpClient
+                    .SendAsync(request, HttpCompletionOption.ResponseContentRead, cts.Token)
+                    .ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
-                var readTask = response.Content.ReadAsStringAsync();
-                readTask.Wait(cts.Token);
-                var responseBody = readTask.Result;
+                var responseBody = await response.Content
+                    .ReadAsStringAsync(cts.Token)
+                    .ConfigureAwait(false);
 
-                // Try to parse several common shapes: { "response": "..."} or { "outputs":[{"content":"..."}]} or raw string.
-                try
-                {
-                    using var doc = JsonDocument.Parse(responseBody);
-                    var root = doc.RootElement;
-
-                    if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
-                        return r.GetString()!.Trim();
-
-                    if (root.TryGetProperty("outputs", out var outputs) && outputs.ValueKind == JsonValueKind.Array && outputs.GetArrayLength() > 0)
-                    {
-                        var first = outputs[0];
-                        if (first.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
-                            return content.GetString()!.Trim();
-
-                        // Some versions give an "text" property
-                        if (first.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
-                            return text.GetString()!.Trim();
-                    }
-
-                    // Fallback: if top-level is string
-                    if (root.ValueKind == JsonValueKind.String)
-                        return root.GetString()!.Trim();
-                }
-                catch (JsonException)
-                {
-                    // Not JSON or unexpected shape — fall through to return raw body
-                }
-
-                return responseBody.Trim();
+                return ParseResponse(responseBody);
             }
-            catch (AggregateException ae) when (ae.InnerException is OperationCanceledException)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new HttpRequestException($"Ollama request timed out after {TimeoutMs}ms.", ae);
+                throw new HttpRequestException($"Ollama request timed out after {TimeoutMs}ms.");
             }
             catch (HttpRequestException ex)
             {
-                throw new HttpRequestException($"Could not connect to Ollama at {ApiUrl}. Is Ollama running? Details: {ex.Message}", ex);
+                throw new HttpRequestException(
+                    $"Could not connect to Ollama at {ApiUrl}. Is Ollama running? Details: {ex.Message}", ex);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not HttpRequestException)
             {
-                throw new InvalidOperationException($"An unexpected error occurred during AI generation: {ex.Message}", ex);
+                throw new InvalidOperationException(
+                    $"An unexpected error occurred during AI generation: {ex.Message}", ex);
             }
+        }
+
+        // Parses several common Ollama response shapes.
+        private static string ParseResponse(string responseBody)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
+                    return r.GetString()!.Trim();
+
+                if (root.TryGetProperty("outputs", out var outputs) &&
+                    outputs.ValueKind == JsonValueKind.Array &&
+                    outputs.GetArrayLength() > 0)
+                {
+                    var first = outputs[0];
+                    if (first.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                        return content.GetString()!.Trim();
+                    if (first.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+                        return text.GetString()!.Trim();
+                }
+
+                if (root.ValueKind == JsonValueKind.String)
+                    return root.GetString()!.Trim();
+            }
+            catch (JsonException) { /* fall through to return raw body */ }
+
+            return responseBody.Trim();
         }
     }
 }

@@ -258,8 +258,15 @@ namespace SimpleSeleniumSupport.Image
 
         private static double ComputeSSIM(Bitmap a, Bitmap b)
         {
-            const double C1 = 6.5025;   // (0.01 * 255)^2
-            const double C2 = 58.5225;  // (0.03 * 255)^2
+            // SSIM stability constants — prevent division by zero in uniform regions.
+            // Derived from the standard SSIM formula: C = (K * L)^2
+            //   L  = 255   (dynamic range of an 8-bit channel)
+            //   K1 = 0.01  (luminance stability factor, Wang et al. 2004)
+            //   K2 = 0.03  (contrast/structure stability factor, Wang et al. 2004)
+            // C1 = (K1 * L)^2 = (0.01 * 255)^2 = 2.55^2  = 6.5025
+            // C2 = (K2 * L)^2 = (0.03 * 255)^2 = 7.65^2  = 58.5225
+            const double C1 = 6.5025;
+            const double C2 = 58.5225;
 
             using var pa = new PixelBuffer(a);
             using var pb = new PixelBuffer(b);
@@ -446,6 +453,11 @@ namespace SimpleSeleniumSupport.Image
 
         private static string GenerateHeatmap(Bitmap a, Bitmap b, string outputDir)
         {
+            // Maximum possible Euclidean distance in RGB space:
+            //   sqrt(255^2 + 255^2 + 255^2) = sqrt(195075) ≈ 441.6729...
+            // Dividing the per-pixel distance by this value normalises it to [0, 1].
+            const double MaxRgbDistance = 441.67;
+
             using var pa = new PixelBuffer(a);
             using var pb = new PixelBuffer(b);
 
@@ -462,11 +474,11 @@ namespace SimpleSeleniumSupport.Image
                     var (r1, g1, b1) = pa.GetRgb(x, y);
                     var (r2, g2, b2) = pb.GetRgb(x, y);
 
-                    // Euclidean color distance normalized to 0..1
+                    // Euclidean color distance normalized to [0, 1]
                     double dist = Math.Sqrt(
                         (r1 - r2) * (r1 - r2) +
                         (g1 - g2) * (g1 - g2) +
-                        (b1 - b2) * (b1 - b2)) / 441.67; // sqrt(255^2 * 3)
+                        (b1 - b2) * (b1 - b2)) / MaxRgbDistance;
 
                     byte hr, hg, hb;
                     if (dist < 0.01)

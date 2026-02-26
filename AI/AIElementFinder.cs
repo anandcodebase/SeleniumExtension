@@ -161,6 +161,121 @@ namespace SimpleSeleniumSupport.AI
         }
 
         /// <summary>
+        /// Async version of <see cref="FindElementByAI(IWebDriver, string, string)"/>.
+        /// Suitable for use in async test frameworks (xUnit, NUnit 3) without
+        /// deadlock-prone <c>.GetAwaiter().GetResult()</c> calls.
+        /// </summary>
+        /// <param name="driver">The driver.</param>
+        /// <param name="description">Natural-language description of the element.</param>
+        /// <param name="ollamaModel">The Ollama model to use.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        public static Task<IWebElement> FindElementByAIAsync(
+            this IWebDriver driver,
+            string description,
+            string ollamaModel = "llama3",
+            CancellationToken cancellationToken = default)
+            => FindElementByAIAsync(driver, description, ollamaModel, DefaultRetries, cancellationToken);
+
+        /// <summary>
+        /// Async version of <see cref="FindElementByAI(IWebDriver, string, string, int)"/>.
+        /// </summary>
+        public static async Task<IWebElement> FindElementByAIAsync(
+            this IWebDriver driver,
+            string description,
+            string ollamaModel,
+            int retries,
+            CancellationToken cancellationToken = default)
+        {
+            string key = CacheKey(driver, description);
+            if (UseCache && _selectorCache.TryGetValue(key, out var cachedXPath))
+            {
+                try { return driver.FindElement(By.XPath(cachedXPath)); }
+                catch (Exception ex)
+                {
+                    OnError?.Invoke(ex, $"AI selector cache stale for '{description}', regenerating");
+                    _selectorCache.TryRemove(key, out _);
+                }
+            }
+
+            Exception lastException = null;
+            for (int attempt = 0; attempt <= retries; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    Console.WriteLine($"🤖 AI Find (attempt {attempt + 1}) for '{description}' using model '{ollamaModel}'");
+                    string prompt = BuildPromptForSelector(driver, description);
+                    string xpath = await OllamaClient.GenerateAsync(prompt, ollamaModel, cancellationToken)
+                        .ConfigureAwait(false);
+                    xpath = NormalizeXpath(xpath);
+                    ValidateXpathOrThrow(xpath, description);
+
+                    var element = driver.FindElement(By.XPath(xpath));
+                    if (UseCache) _selectorCache[key] = xpath;
+                    Console.WriteLine($"✅ AI generated XPath: {xpath}");
+                    return element;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    Console.WriteLine($"AI selector attempt failed: {ex.Message}");
+                    await Task.Delay(DefaultRetryDelayMs, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            // Final fallback: heuristic search
+            try
+            {
+                var fallback = HeuristicFind(driver, description);
+                if (fallback != null) return fallback;
+            }
+            catch (Exception ex) { Console.WriteLine($"Fallback heuristic failed: {ex.Message}"); }
+
+            throw new NoSuchElementException(
+                $"Failed to find element for description '{description}'. See inner for details.",
+                lastException);
+        }
+
+        /// <summary>
+        /// Async version of <see cref="WaitAndFindByAI"/>.
+        /// Polls until the AI-located element is visible or <paramref name="timeoutInSeconds"/> elapses.
+        /// </summary>
+        /// <param name="driver">The driver.</param>
+        /// <param name="description">Natural-language description of the element.</param>
+        /// <param name="timeoutInSeconds">Timeout; &lt;= 0 uses <see cref="DefaultWaitTimeoutSeconds"/>.</param>
+        /// <param name="ollamaModel">The Ollama model to use.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        public static async Task<IWebElement> WaitAndFindByAIAsync(
+            this IWebDriver driver,
+            string description,
+            int timeoutInSeconds = -1,
+            string ollamaModel = "llama3",
+            CancellationToken cancellationToken = default)
+        {
+            if (timeoutInSeconds <= 0) timeoutInSeconds = DefaultWaitTimeoutSeconds;
+            var deadline = DateTime.UtcNow.AddSeconds(timeoutInSeconds);
+
+            while (DateTime.UtcNow < deadline)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var el = await FindElementByAIAsync(driver, description, ollamaModel, DefaultRetries, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (el != null && el.Displayed) return el;
+                }
+                catch (Exception ex)
+                {
+                    OnError?.Invoke(ex, $"WaitAndFindByAIAsync polling attempt failed for '{description}'");
+                }
+                await Task.Delay(DefaultRetryDelayMs, cancellationToken).ConfigureAwait(false);
+            }
+
+            throw new WebDriverTimeoutException(
+                $"Timed out after {timeoutInSeconds}s waiting for AI element '{description}'.");
+        }
+
+        /// <summary>
         /// Returns multiple matching elements for a fuzzy description (e.g., "all product titles").
         /// Uses AI to produce an XPath that may match many elements.
         /// </summary>
