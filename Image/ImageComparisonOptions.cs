@@ -48,9 +48,9 @@ namespace SimpleSeleniumSupport.Image
 
         /// <summary>
         /// Pass/fail threshold (0-100). Comparison passes if SimilarityPercent >= Threshold.
-        /// Default 95.0.
+        /// Defaults to <see cref="SimpleSeleniumSupportDefaults.VisualThreshold"/> (95.0).
         /// </summary>
-        public double Threshold { get; set; } = 95.0;
+        public double Threshold { get; set; } = SimpleSeleniumSupportDefaults.VisualThreshold;
 
         // ================= TOLERANCE =================
 

@@ -23,7 +23,7 @@ namespace SimpleSeleniumSupport.AI
         /// <value>
         /// The default retries.
         /// </value>
-        public static int DefaultRetries { get; set; } = 2;
+        public static int DefaultRetries { get; set; } = SimpleSeleniumSupportDefaults.AiRetries;
         /// <summary>
         /// Gets or sets the default retry delay ms.
         /// </summary>
@@ -61,8 +61,8 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="description">The description.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IWebElement FindElementByAI(this IWebDriver driver, string description, string ollamaModel = "llama3")
-            => FindElementByAI(driver, description, ollamaModel, DefaultRetries);
+        public static IWebElement FindElementByAI(this IWebDriver driver, string description, string ollamaModel = null)
+            => FindElementByAI(driver, description, ollamaModel ?? SimpleSeleniumSupportDefaults.OllamaModel, DefaultRetries);
 
         /// <summary>
         /// Finds the element by ai.
@@ -141,8 +141,9 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="timeoutInSeconds">The timeout in seconds.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IWebElement WaitAndFindByAI(this IWebDriver driver, string description, int timeoutInSeconds = -1, string ollamaModel = "llama3")
+        public static IWebElement WaitAndFindByAI(this IWebDriver driver, string description, int timeoutInSeconds = -1, string ollamaModel = null)
         {
+            ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             if (timeoutInSeconds <= 0) timeoutInSeconds = DefaultWaitTimeoutSeconds;
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(timeoutInSeconds));
             return wait.Until(d =>
@@ -172,9 +173,9 @@ namespace SimpleSeleniumSupport.AI
         public static Task<IWebElement> FindElementByAIAsync(
             this IWebDriver driver,
             string description,
-            string ollamaModel = "llama3",
+            string ollamaModel = null,
             CancellationToken cancellationToken = default)
-            => FindElementByAIAsync(driver, description, ollamaModel, DefaultRetries, cancellationToken);
+            => FindElementByAIAsync(driver, description, ollamaModel ?? SimpleSeleniumSupportDefaults.OllamaModel, DefaultRetries, cancellationToken);
 
         /// <summary>
         /// Async version of <see cref="FindElementByAI(IWebDriver, string, string, int)"/>.
@@ -249,9 +250,10 @@ namespace SimpleSeleniumSupport.AI
             this IWebDriver driver,
             string description,
             int timeoutInSeconds = -1,
-            string ollamaModel = "llama3",
+            string ollamaModel = null,
             CancellationToken cancellationToken = default)
         {
+            ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             if (timeoutInSeconds <= 0) timeoutInSeconds = DefaultWaitTimeoutSeconds;
             var deadline = DateTime.UtcNow.AddSeconds(timeoutInSeconds);
 
@@ -283,8 +285,9 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="description">The description.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> FindElementsByAI(this IWebDriver driver, string description, string ollamaModel = "llama3")
+        public static IReadOnlyCollection<IWebElement> FindElementsByAI(this IWebDriver driver, string description, string ollamaModel = null)
         {
+            ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             string prompt = BuildPromptForSelector(driver, description) + "\nNote: If multiple matching elements exist, return an XPath that selects all matching nodes.";
 
             string xpath = OllamaClient.Generate(prompt, ollamaModel);

@@ -17,8 +17,9 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="consoleLogs">Optional console logs collected during the test</param>
         /// <param name="ollamaModel">Model name to call</param>
         /// <returns>AI suggestion text</returns>
-        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string testName = null, Capture capture = null, IEnumerable<ConsoleLogEntry> consoleLogs = null, string ollamaModel = "llama3")
+        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string testName = null, Capture capture = null, IEnumerable<ConsoleLogEntry> consoleLogs = null, string ollamaModel = null)
         {
+            ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             testName ??= "UnnamedTest";
 
             // 1) Save diagnostics first (screenshot, HTML, console, network export)
