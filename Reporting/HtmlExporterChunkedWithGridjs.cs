@@ -124,82 +124,398 @@ namespace SimpleSeleniumSupport.Reporting
         }
 
         private static string BuildClientHtml(int pageCount, int pageSize, int maxFieldLength)
-        {
-            var sb = new StringBuilder();
+            => GetClientTemplate()
+                .Replace("[[PGSZ]]", pageSize.ToString())
+                .Replace("[[MAXF]]", maxFieldLength.ToString());
 
-            sb.AppendLine("<!doctype html>");
-            sb.AppendLine("<html lang='en'>");
-            sb.AppendLine("<head>");
-            sb.AppendLine("  <meta charset='utf-8'/>");
-            sb.AppendLine("  <meta name='viewport' content='width=device-width,initial-scale=1'/>");
-            sb.AppendLine("  <title>Network Export (grid.js)</title>");
-            sb.AppendLine("  <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css' rel='stylesheet' crossorigin='anonymous'>");
-            sb.AppendLine("  <link href='https://unpkg.com/gridjs/dist/theme/mermaid.min.css' rel='stylesheet' />");
-            sb.AppendLine("  <style>td{white-space:pre-wrap;word-break:break-word;max-width:420px;overflow:hidden;text-overflow:ellipsis}.gridjs-container{font-size:13px}.thumb{max-width:120px;max-height:80px;object-fit:cover;border-radius:4px;border:1px solid #ddd}.select-col{width:36px;text-align:center}.cell-content{cursor:pointer}</style>");
-            sb.AppendLine("</head>");
-            sb.AppendLine("<body>");
-            sb.AppendLine("  <div class='container py-3'>");
-            sb.AppendLine("    <div class='d-flex mb-2 align-items-center'>");
-            sb.AppendLine("      <h4 class='me-3'>Network Export</h4>");
-            sb.AppendLine("      <div id='summary' class='text-muted small'>Loading…</div>");
-            sb.AppendLine("      <div class='ms-auto d-flex gap-2 align-items-center'>");
-            sb.AppendLine("        <input id='globalSearch' class='form-control form-control-sm' placeholder='Global search...' style='min-width:200px'/>");
-            sb.AppendLine("        <select id='pageSizeSelect' class='form-select form-select-sm' style='width:120px'></select>");
-            sb.AppendLine("        <select id='statusFilter' class='form-select form-select-sm' style='width:140px'><option value=''>All statuses</option></select>");
-            sb.AppendLine("        <button id='downloadFiltered' class='btn btn-sm btn-outline-primary'>Download Filtered JSON</button>");
-            sb.AppendLine("        <button id='exportSelected' class='btn btn-sm btn-outline-success'>Export Selected</button>");
-            sb.AppendLine("      </div>");
-            sb.AppendLine("    </div>");
-            sb.AppendLine("    <div id='grid'></div>");
-            sb.AppendLine("    <nav class='d-flex justify-content-between align-items-center mt-2' aria-label='Pagination'>");
-            sb.AppendLine("      <div class='small' id='pageInfo'>Page 0</div>");
-            sb.AppendLine("      <ul class='pagination pagination-sm mb-0' id='pager'></ul>");
-            sb.AppendLine("    </nav>");
-            sb.AppendLine("  </div>");
-            sb.AppendLine("  <div class='modal fade' id='fullModal' tabindex='-1'><div class='modal-dialog modal-xl'><div class='modal-content'><div class='modal-header'><h5 class='modal-title'>Full content</h5><button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button></div><div class='modal-body'><div id='modalBody'></div></div><div class='modal-footer'><button class='btn btn-secondary' data-bs-dismiss='modal'>Close</button></div></div></div></div>");
-            sb.AppendLine("  <script src='https://unpkg.com/gridjs/dist/gridjs.umd.js'></script>");
-            sb.AppendLine("  <script> if (!gridjs.htmlEscape) { gridjs.htmlEscape = function (s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }; } </script>");
-            sb.AppendLine("  <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js' crossorigin='anonymous'></script>");
+        // Raw string literal — JS template literals / braces need no escaping here.
+        private static string GetClientTemplate() => """
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Export</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous"/>
+<link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet"/>
+<style>
+:root{--c-2xx:#198754;--c-3xx:#0d6efd;--c-4xx:#fd7e14;--c-5xx:#dc3545}
+body{background:#f5f6f8;font-size:13px;margin:0}
+#topbar{background:#1e293b;color:#f1f5f9;padding:9px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+#topbar h1{font-size:15px;margin:0;font-weight:600}
+#statsBar{display:flex;gap:10px;padding:10px 20px;background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;align-items:center}
+.stat-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 16px;text-align:center;min-width:100px}
+.stat-val{font-size:18px;font-weight:700;line-height:1.2}
+.stat-lbl{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.has-err .stat-val{color:#dc3545}
+#filterBar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 20px;background:#fff;border-bottom:1px solid #e2e8f0}
+.sc-pills{display:flex;gap:3px}
+.sc-btn{border:1px solid #cbd5e1;background:#fff;border-radius:20px;padding:2px 11px;font-size:11px;font-weight:600;cursor:pointer;transition:.12s}
+.sc-btn:hover{background:#f1f5f9}.sc-btn.active{background:#1e293b;color:#fff;border-color:#1e293b}
+.sc-btn.s2xx.active{background:var(--c-2xx);border-color:var(--c-2xx)}
+.sc-btn.s3xx.active{background:var(--c-3xx);border-color:var(--c-3xx)}
+.sc-btn.s4xx.active{background:var(--c-4xx);border-color:var(--c-4xx)}
+.sc-btn.s5xx.active{background:var(--c-5xx);border-color:var(--c-5xx)}
+#main{padding:12px 20px}
+/* Status badges */
+.sb{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}
+.sb-2xx{background:var(--c-2xx)}.sb-3xx{background:var(--c-3xx)}.sb-4xx{background:var(--c-4xx)}.sb-5xx{background:var(--c-5xx)}.sb-unk{background:#94a3b8}
+/* Method badges */
+.mb{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;font-family:monospace}
+.mb-get{background:#dbeafe;color:#1d4ed8}.mb-post{background:#dcfce7;color:#166534}
+.mb-put{background:#fff7ed;color:#9a3412}.mb-del{background:#fee2e2;color:#991b1b}
+.mb-pat{background:#f5f3ff;color:#6d28d9}.mb-hd{background:#f0fdf4;color:#166534}.mb-oth{background:#f1f5f9;color:#475569}
+/* Latency badges */
+.lb{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600}
+.lb-fast{background:#d1fae5;color:#065f46}.lb-ok{background:#fef9c3;color:#854d0e}
+.lb-slow{background:#ffedd5;color:#9a3412}.lb-vslow{background:#fee2e2;color:#991b1b}
+/* URL cell */
+.url-cell{display:flex;align-items:center;gap:4px;max-width:360px}
+.url-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:12px}
+.copy-btn{display:none;background:none;border:1px solid #cbd5e1;border-radius:3px;padding:0 4px;font-size:10px;cursor:pointer;color:#64748b}
+.url-cell:hover .copy-btn{display:inline}
+/* Cell expand */
+.cell-content{cursor:pointer;white-space:pre-wrap;word-break:break-word;max-width:340px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.gridjs-container{font-size:13px}
+.thumb{max-width:100px;max-height:70px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;cursor:zoom-in}
+/* Pager */
+#pageInfo{font-size:12px;color:#64748b}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>Network Export</h1>
+  <span id="gen-time" style="color:#94a3b8;font-size:11px"></span>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <button id="downloadFiltered" class="btn btn-sm btn-outline-light">Download Filtered JSON</button>
+    <button id="exportSelected"   class="btn btn-sm btn-outline-light">Export Selected JSON</button>
+  </div>
+</div>
 
-            // Client JS (fetch data.json then same behaviors; truncation 200 chars and click cell opens modal)
-            sb.AppendLine("  <script>");
-            sb.AppendLine("  (function(){");
-            sb.AppendLine("    const DATA_URL = 'data.json';");
-            sb.AppendLine("    const maxFieldDefault = " + maxFieldLength + ";");
-            sb.AppendLine("    const pageSizeDefault = " + pageSize + ";");
-            sb.AppendLine("    function showSpinner(t){ if(!document.getElementById('ssa-spinner')){ const s=document.createElement('div'); s.id='ssa-spinner'; s.style='position:fixed;right:16px;bottom:16px;padding:10px;background:rgba(0,0,0,0.7);color:#fff;border-radius:6px;z-index:9999'; s.textContent=t||'Loading…'; document.body.appendChild(s);} else document.getElementById('ssa-spinner').textContent=t||'Loading…'; }");
-            sb.AppendLine("    function hideSpinner(){ const e=document.getElementById('ssa-spinner'); if(e) e.remove(); }");
-            sb.AppendLine("    async function fetchData(){ showSpinner('Fetching data.json…'); try{ const r = await fetch(DATA_URL); if(!r.ok) throw new Error('Failed to fetch '+DATA_URL+': '+r.status); const j = await r.json(); hideSpinner(); return j; } catch(e){ hideSpinner(); throw e; } }");
-            sb.AppendLine("    fetchData().then(init).catch(err=>{ console.error(err); alert('Failed to load data.json: '+err.message + '\\nIf opening via file:// your browser might block fetch. Serve the folder via local HTTP.'); });");
-            sb.AppendLine("    function init(allData){ const maxField = maxFieldDefault; let pageSize = pageSizeDefault; let currentPage = 1; let filteredObjects = allData.slice(); const selected = new Set(); const gridContainer = document.getElementById('grid'); const globalSearch = document.getElementById('globalSearch'); const pageSizeSelect = document.getElementById('pageSizeSelect'); const statusFilter = document.getElementById('statusFilter'); const downloadFiltered = document.getElementById('downloadFiltered'); const exportSelected = document.getElementById('exportSelected'); const summary = document.getElementById('summary'); const pager = document.getElementById('pager');");
-            sb.AppendLine("      function esc(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }");
-            sb.AppendLine("      function isImageUrl(u){ if(!u) return false; try{ const s=String(u).trim(); if(s.toLowerCase().startsWith('data:image/')) return true; try{ const p=new URL(s, window.location.href); return /\\.(png|jpe?g|gif|webp|bmp)$/i.test(p.pathname);}catch{return /^[.]{1,2}\\/.*\\.(png|jpe?g|gif|webp|bmp)$/i.test(s);} }catch{return false;} }");
-            sb.AppendLine("      function makeClickableHtml(s){ if(!s) return ''; const text=String(s); if(maxField<=0) return '<div class=\"cell-content\" data-full=\"'+encodeURIComponent(text)+'\">'+gridjs.htmlEscape(text)+'</div>'; if(text.length<=maxField) return '<div class=\"cell-content\" data-full=\"'+encodeURIComponent(text)+'\">'+gridjs.htmlEscape(text)+'</div>'; const short=gridjs.htmlEscape(text.slice(0,maxField)) + '...'; return '<div class=\"cell-content\" data-full=\"'+encodeURIComponent(text)+'\">'+short+'</div>'; }");
-            sb.AppendLine("      [10,25,50,100,250].forEach(n=>{ const o=document.createElement('option'); o.value=n; o.text=n+' / page'; pageSizeSelect.appendChild(o); }); pageSizeSelect.value = pageSize; pageSizeSelect.addEventListener('change', ()=>{ pageSize = Number(pageSizeSelect.value); currentPage=1; renderCurrentPage(); renderPager(); });");
-            sb.AppendLine("      const columns = [ { id:'select', name:'', formatter: (_,r)=>gridjs.html('<input type=\"checkbox\" class=\"row-select\"/>'), sort:false, width:36 }, { id:'RequestUrl', name:'RequestUrl', formatter: c => gridjs.html('<div class=\"cell-content\" data-full=\"'+encodeURIComponent(c||'')+'\">'+gridjs.htmlEscape(c||'')+'</div>') }, { id:'RequestMethod', name:'Method' }, { id:'RequestTimestamp', name:'Req Time (UTC)'} , { id:'ResponseTimestamp', name:'Resp Time (UTC)'}, { id:'LatencyMs', name:'Latency'}, { id:'Status', name:'Status'}, { id:'ResourceType', name:'Resource'}, { id:'RequestHeaders', name:'RequestHeaders', formatter: c => gridjs.html(makeClickableHtml(c)) }, { id:'RequestBody', name:'RequestBody', formatter: c => { if(isImageUrl(c)) return gridjs.html('<img src=\"'+gridjs.htmlEscape(c)+'\" class=\"thumb view-media\" data-full=\"'+encodeURIComponent(c)+'\" loading=\"lazy\" />'); return gridjs.html(makeClickableHtml(c)); } }, { id:'ResponseHeaders', name:'ResponseHeaders', formatter: c => gridjs.html(makeClickableHtml(c)) }, { id:'ResponseBody', name:'ResponseBody', formatter: c => { if(isImageUrl(c)) return gridjs.html('<img src=\"'+gridjs.htmlEscape(c)+'\" class=\"thumb view-media\" data-full=\"'+encodeURIComponent(c)+'\" loading=\"lazy\" />'); return gridjs.html(makeClickableHtml(c)); } } ];");
-            sb.AppendLine("      const grid = new gridjs.Grid({ columns: columns, data: [], pagination:{enabled:true,limit:pageSize,summary:true}, sort:true, search:false, fixedHeader:true }).render(gridContainer);");
-            sb.AppendLine("      function getPageSlice(objs, page, limit){ const start=(page-1)*limit; return objs.slice(start,start+limit); }");
-            sb.AppendLine("      function renderCurrentPage(){ showSpinner('Rendering…'); const slice = getPageSlice(filteredObjects, currentPage, pageSize); const dataForGrid = slice.map(o=>['', o.RequestUrl, o.RequestMethod, o.RequestTimestamp, o.ResponseTimestamp, o.LatencyMs, o.Status, o.ResourceType, o.RequestHeaders, o.RequestBody, o.ResponseHeaders, o.ResponseBody]); const schedule = window.requestIdleCallback || function(cb){return setTimeout(cb,50);}; schedule(()=>{ grid.updateConfig({ data: dataForGrid, pagination:{ enabled:true, limit:pageSize } }).forceRender(); attachRowMeta(slice); hideSpinner(); }); }");
-            sb.AppendLine("      function attachRowMeta(slice){ try{ const tbody=document.querySelector('.gridjs-table tbody'); if(!tbody) return; const rows=Array.from(tbody.querySelectorAll('tr')); rows.forEach((tr,i)=>{ const obj=slice[i]; if(!obj) return; tr.dataset.objIndex = obj.__index; const first=tr.querySelector('td'); if(first) first.innerHTML = `<input type=\"checkbox\" class=\"row-select\" data-idx=\"${obj.__index}\" ${selected.has(obj.__index)?'checked':''} />`; Array.from(tr.querySelectorAll('td')).forEach(td=>{ if(!td.dataset._title){ td.title = td.textContent || ''; td.dataset._title='1'; } }); }); }catch(e){ console.error(e);} }");
-            sb.AppendLine("      function applyFiltersDebounced(){ showSpinner('Filtering…'); setTimeout(()=>{ const q=(globalSearch.value||'').toLowerCase(); const status=(statusFilter.value||''); filteredObjects = allData.filter(d=>{ if(status && String(d.Status)!==String(status)) return false; if(!q) return true; const hay = ((d.RequestUrl||'')+' '+(d.RequestHeaders||'')+' '+(d.ResponseHeaders||'')+' '+(d.RequestBody||'')+' '+(d.ResponseBody||'')).toLowerCase(); return hay.indexOf(q)!==-1; }); currentPage=1; renderPager(); renderCurrentPage(); hideSpinner(); }, 150); }");
-            sb.AppendLine("      function renderPager(){ const totalPages = Math.max(1, Math.ceil(filteredObjects.length/pageSize)); const pagerEl = document.getElementById('pager'); if(!pagerEl) return; pagerEl.innerHTML=''; function addBtn(text, cb, disabled){ const li=document.createElement('li'); li.className='page-item '+(disabled?'disabled':''); const a=document.createElement('a'); a.className='page-link'; a.href='#'; a.textContent=text; a.onclick=function(e){ e.preventDefault(); if(!disabled) cb(); }; li.appendChild(a); pagerEl.appendChild(li);} addBtn('⏮', ()=>{ currentPage=1; renderCurrentPage(); }, currentPage===1); addBtn('Prev', ()=>{ if(currentPage>1){ currentPage--; renderCurrentPage(); } }, currentPage===1); const start=Math.max(1,currentPage-2), end=Math.min(totalPages,currentPage+2); for(let p=start;p<=end;p++){ addBtn(String(p), ()=>{ currentPage=p; renderCurrentPage(); }, false); } addBtn('Next', ()=>{ if(currentPage<totalPages){ currentPage++; renderCurrentPage(); } }, currentPage===totalPages); addBtn('⏭', ()=>{ currentPage=totalPages; renderCurrentPage(); }, currentPage===totalPages); const info = document.getElementById('pageInfo'); if(info) info.textContent = `Page ${currentPage} of ${totalPages} — ${filteredObjects.length} items`; }");
-            sb.AppendLine("      function showSpinner(t){ if(!document.getElementById('ssa-spinner')){ const s=document.createElement('div'); s.id='ssa-spinner'; s.style='position:fixed;right:16px;bottom:16px;padding:10px;background:rgba(0,0,0,0.7);color:#fff;border-radius:6px;z-index:9999'; s.textContent = t||'Loading…'; document.body.appendChild(s);} else document.getElementById('ssa-spinner').textContent = t||'Loading…'; }");
-            sb.AppendLine("      function hideSpinner(){ const e=document.getElementById('ssa-spinner'); if(e) e.remove(); }");
-            sb.AppendLine("      downloadFiltered.addEventListener('click', ()=>{ const json = JSON.stringify(filteredObjects, null, 2); const blob = new Blob([json], {type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='filtered-report.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });");
-            sb.AppendLine("      exportSelected.addEventListener('click', ()=>{ if(selected.size===0){ alert('No rows selected'); return; } const objs = allData.filter(o=> selected.has(o.__index)); const blob = new Blob([JSON.stringify(objs, null, 2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='selected-report.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });");
-            sb.AppendLine("      document.body.addEventListener('change', function(ev){ const cb = ev.target.closest('.row-select'); if(!cb) return; const idx = Number(cb.getAttribute('data-idx')); if(cb.checked) selected.add(idx); else selected.delete(idx); });");
-            sb.AppendLine("      document.body.addEventListener('click', function(ev){ const cell = ev.target.closest('.cell-content'); if(cell){ ev.preventDefault(); const full = decodeURIComponent(cell.getAttribute('data-full')||''); const modal = new bootstrap.Modal(document.getElementById('fullModal')); document.getElementById('modalBody').innerHTML = '<pre>'+esc(full)+'</pre>'; modal.show(); return; } const img = ev.target.closest('img.view-media'); if(img){ ev.preventDefault(); const src = decodeURIComponent(img.getAttribute('data-full')||img.src||''); const modal = new bootstrap.Modal(document.getElementById('fullModal')); modal.show(); document.getElementById('modalBody').innerHTML = `<img src=\"${src.Replace(/\", '&quot;')}\" style=\"max-width:100%;height:auto;display:block;margin:0 auto\" />`; return; } });");
-            sb.AppendLine("      globalSearch.addEventListener('input', debounce(applyFiltersDebounced, 200)); statusFilter.addEventListener('change', ()=>{ applyFiltersDebounced(); });");
-            sb.AppendLine("      function debounce(fn, ms){ let t; return function(){ clearTimeout(t); t = setTimeout(()=>fn.apply(this, arguments), ms); }; }");
-            sb.AppendLine("      function populateAndStart(){ const statuses = Array.from(new Set(allData.map(d=>String(d.Status||'')).filter(x=>x))).sort(); statusFilter.innerHTML = '<option value=\"\">All statuses</option>' + statuses.map(s=>`<option value='${s}'>${s}</option>`).join(''); filteredObjects = allData.slice(); renderPager(); renderCurrentPage(); }");
-            sb.AppendLine("      populateAndStart();");
-            sb.AppendLine("    }"); // end init
-            sb.AppendLine("  })();");
-            sb.AppendLine("  </script>");
-            sb.AppendLine("</body>");
-            sb.AppendLine("</html>");
+<div id="statsBar">
+  <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total</div></div>
+  <div class="stat-card has-err"><div class="stat-val" id="s-err">—</div><div class="stat-lbl">Errors 4xx/5xx</div></div>
+  <div class="stat-card"><div class="stat-val" id="s-lat">—</div><div class="stat-lbl">Avg Latency</div></div>
+  <div class="stat-card"><div class="stat-val" id="s-show">—</div><div class="stat-lbl">Showing</div></div>
+  <div id="load-msg" style="margin-left:12px;color:#64748b;font-size:12px">Loading data.json…</div>
+</div>
 
-            return sb.ToString();
-        }
+<div id="filterBar">
+  <div class="sc-pills">
+    <button class="sc-btn active" data-sc="all">All</button>
+    <button class="sc-btn s2xx" data-sc="2">2xx</button>
+    <button class="sc-btn s3xx" data-sc="3">3xx</button>
+    <button class="sc-btn s4xx" data-sc="4">4xx</button>
+    <button class="sc-btn s5xx" data-sc="5">5xx</button>
+  </div>
+  <select id="f-method"   class="form-select form-select-sm" style="width:auto;min-width:110px"><option value="">All Methods</option></select>
+  <select id="f-resource" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">All Resources</option></select>
+  <input  id="f-search"   class="form-control form-control-sm" placeholder="Search… (press /)" style="width:200px"/>
+  <select id="f-pagesize" class="form-select form-select-sm" style="width:110px"></select>
+  <button id="f-clear"    class="btn btn-sm btn-outline-secondary">Clear</button>
+  <label style="font-size:12px;color:#64748b;margin-left:4px">
+    <input type="checkbox" id="sel-all"/> Select all
+  </label>
+</div>
+
+<div id="main">
+  <div id="grid"></div>
+  <nav class="d-flex justify-content-between align-items-center mt-2">
+    <div id="pageInfo"></div>
+    <ul class="pagination pagination-sm mb-0" id="pager"></ul>
+  </nav>
+</div>
+
+<!-- Detail modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modal-title">Request Detail</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="nav nav-tabs px-3 pt-2" id="modal-tabs" role="tablist"></ul>
+        <div class="tab-content p-3" id="modal-tab-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+  const PGSZ_DEFAULT = [[PGSZ]];
+  const MAXF         = [[MAXF]];
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function esc(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function debounce(fn,ms){ let t; return function(){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,arguments),ms); }; }
+  function showSpinner(t){ const el=document.getElementById('ssa-sp'); if(el){el.textContent=t||'…';}else{const s=document.createElement('div');s.id='ssa-sp';s.style='position:fixed;right:16px;bottom:16px;padding:8px 14px;background:rgba(0,0,0,.75);color:#fff;border-radius:6px;z-index:9999;font-size:13px';s.textContent=t||'…';document.body.appendChild(s);} }
+  function hideSpinner(){ const e=document.getElementById('ssa-sp');if(e)e.remove(); }
+  function download(name,content,type){ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href); }
+
+  function statusBadge(s){
+    const code=Number(s)||0;
+    const cls=code>=500?'sb-5xx':code>=400?'sb-4xx':code>=300?'sb-3xx':code>=200?'sb-2xx':'sb-unk';
+    return `<span class="sb ${cls}">${esc(String(s||'—'))}</span>`;
+  }
+  function methodBadge(m){
+    const v=(m||'').toUpperCase();
+    const cls=v==='GET'?'mb-get':v==='POST'?'mb-post':v==='PUT'?'mb-put':v==='DELETE'?'mb-del':v==='PATCH'?'mb-pat':v==='HEAD'?'mb-hd':'mb-oth';
+    return `<span class="mb ${cls}">${esc(v||'—')}</span>`;
+  }
+  function latencyBadge(ms){
+    if(ms==null||ms==='') return '<span class="lb lb-ok">—</span>';
+    const n=Number(ms);
+    const cls=n<100?'lb-fast':n<500?'lb-ok':n<2000?'lb-slow':'lb-vslow';
+    return `<span class="lb ${cls}">${n.toLocaleString()} ms</span>`;
+  }
+  function urlCell(u){
+    const safe=esc(u||'');
+    return `<div class="url-cell"><span class="url-txt" title="${safe}">${safe}</span><button class="copy-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(u||'')}'))">copy</button></div>`;
+  }
+  function clickable(s){
+    const text=String(s||'');
+    const short=MAXF>0&&text.length>MAXF?esc(text.slice(0,MAXF))+'…':esc(text);
+    return `<div class="cell-content" data-full="${encodeURIComponent(text)}">${short}</div>`;
+  }
+  function isImg(u){ if(!u)return false; const s=String(u); return s.startsWith('data:image/')||/\.(png|jpe?g|gif|webp|bmp)$/i.test(s); }
+  function bodyCell(s){
+    if(isImg(s)) return `<img src="${esc(s)}" class="thumb view-media" data-full="${encodeURIComponent(s)}" loading="lazy"/>`;
+    return clickable(s);
+  }
+
+  // ── Fetch data ────────────────────────────────────────────────────────────
+  showSpinner('Loading data.json…');
+  fetch('data.json')
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(init)
+    .catch(err=>{
+      hideSpinner();
+      document.getElementById('load-msg').textContent='Failed to load data.json: '+err.message+'. Serve the folder via HTTP.';
+    });
+
+  function init(allData){
+    hideSpinner();
+    document.getElementById('load-msg').style.display='none';
+    document.getElementById('gen-time').textContent='Loaded '+allData.length.toLocaleString()+' rows · '+new Date().toLocaleTimeString();
+
+    // Stats
+    const errCount = allData.filter(d=>{ const c=Number(d.Status); return c>=400; }).length;
+    const lats = allData.map(d=>Number(d.LatencyMs)).filter(n=>!isNaN(n)&&n>=0);
+    const avgLat = lats.length ? Math.round(lats.reduce((a,b)=>a+b,0)/lats.length) : null;
+    document.getElementById('s-total').textContent = allData.length.toLocaleString();
+    document.getElementById('s-err'  ).textContent = errCount.toLocaleString();
+    document.getElementById('s-lat'  ).textContent = avgLat!=null ? avgLat.toLocaleString()+' ms' : '—';
+
+    // Populate method/resource dropdowns
+    const fMethod   = document.getElementById('f-method');
+    const fResource = document.getElementById('f-resource');
+    [...new Set(allData.map(d=>d.RequestMethod||'').filter(Boolean))].sort()
+      .forEach(m=>fMethod.insertAdjacentHTML('beforeend',`<option value="${esc(m)}">${esc(m)}</option>`));
+    [...new Set(allData.map(d=>d.ResourceType||'').filter(Boolean))].sort()
+      .forEach(r=>fResource.insertAdjacentHTML('beforeend',`<option value="${esc(r)}">${esc(r)}</option>`));
+
+    // Page size selector
+    const fPagesize = document.getElementById('f-pagesize');
+    [10,25,50,100,250].forEach(n=>{
+      const o=document.createElement('option'); o.value=n; o.text=n+' / page';
+      if(n===PGSZ_DEFAULT) o.selected=true;
+      fPagesize.appendChild(o);
+    });
+
+    let pageSize = PGSZ_DEFAULT;
+    let currentPage = 1;
+    let filtered = allData.slice();
+    let activeSc = 'all';
+    const selected = new Set();
+
+    // ── gridjs ───────────────────────────────────────────────────────────────
+    const columns = [
+      { id:'sel',    name:'',            sort:false, width:'36px',
+        formatter:()=>gridjs.html('<input type="checkbox" class="row-select"/>') },
+      { id:'url',    name:'URL',         sort:false,
+        formatter:c=>gridjs.html(urlCell(c)) },
+      { id:'method', name:'Method',      formatter:c=>gridjs.html(methodBadge(c)) },
+      { id:'status', name:'Status',      formatter:c=>gridjs.html(statusBadge(c)) },
+      { id:'lat',    name:'Latency',     formatter:c=>gridjs.html(latencyBadge(c)) },
+      { id:'res',    name:'Resource' },
+      { id:'reqTs',  name:'Req Time' },
+      { id:'respTs', name:'Resp Time' },
+      { id:'reqH',   name:'Req Headers', sort:false, formatter:c=>gridjs.html(clickable(c)) },
+      { id:'reqB',   name:'Req Body',    sort:false, formatter:c=>gridjs.html(bodyCell(c)) },
+      { id:'respH',  name:'Resp Headers',sort:false, formatter:c=>gridjs.html(clickable(c)) },
+      { id:'respB',  name:'Resp Body',   sort:false, formatter:c=>gridjs.html(bodyCell(c)) }
+    ];
+
+    const grid = new gridjs.Grid({
+      columns, data:[], sort:true, search:false,
+      pagination:{enabled:true,limit:pageSize,summary:true},
+      fixedHeader:true, height:'62vh'
+    }).render(document.getElementById('grid'));
+
+    function toRow(o){
+      return ['', o.RequestUrl, o.RequestMethod, o.Status, o.LatencyMs,
+              o.ResourceType, o.RequestTimestamp, o.ResponseTimestamp,
+              o.RequestHeaders, o.RequestBody, o.ResponseHeaders, o.ResponseBody];
+    }
+
+    function renderPage(){
+      showSpinner('Rendering…');
+      const start=(currentPage-1)*pageSize;
+      const slice=filtered.slice(start,start+pageSize);
+      const schedule=window.requestIdleCallback||function(cb){return setTimeout(cb,40);};
+      schedule(()=>{
+        grid.updateConfig({data:slice.map(toRow),pagination:{enabled:true,limit:pageSize}}).forceRender();
+        // Attach checkbox data-idx and selected state after render
+        setTimeout(()=>{
+          const tbody=document.querySelector('.gridjs-table tbody'); if(!tbody){hideSpinner();return;}
+          Array.from(tbody.querySelectorAll('tr')).forEach((tr,i)=>{
+            const obj=slice[i]; if(!obj) return;
+            tr.dataset.idx=obj.__index;
+            const cb=tr.querySelector('.row-select');
+            if(cb){ cb.setAttribute('data-idx',obj.__index); cb.checked=selected.has(obj.__index); }
+          });
+          hideSpinner();
+        },80);
+      });
+    }
+
+    function applyFilters(){
+      showSpinner('Filtering…');
+      setTimeout(()=>{
+        const q    = (document.getElementById('f-search').value||'').toLowerCase();
+        const meth = fMethod.value;
+        const res  = fResource.value;
+        filtered = allData.filter(d=>{
+          if(activeSc!=='all'){
+            const c=Number(d.Status)||0;
+            if(activeSc==='2'&&(c<200||c>=300)) return false;
+            if(activeSc==='3'&&(c<300||c>=400)) return false;
+            if(activeSc==='4'&&(c<400||c>=500)) return false;
+            if(activeSc==='5'&&c<500)           return false;
+          }
+          if(meth && d.RequestMethod!==meth)   return false;
+          if(res  && d.ResourceType!==res)     return false;
+          if(q){
+            const hay=((d.RequestUrl||'')+' '+(d.RequestHeaders||'')+' '+(d.ResponseHeaders||'')+' '+(d.RequestBody||'')+' '+(d.ResponseBody||'')).toLowerCase();
+            if(!hay.includes(q)) return false;
+          }
+          return true;
+        });
+        document.getElementById('s-show').textContent = filtered.length.toLocaleString();
+        currentPage=1;
+        renderPager();
+        renderPage();
+        hideSpinner();
+      },120);
+    }
+
+    function renderPager(){
+      const total=Math.max(1,Math.ceil(filtered.length/pageSize));
+      const pager=document.getElementById('pager');
+      pager.innerHTML='';
+      function btn(txt,cb,dis){
+        const li=document.createElement('li'); li.className='page-item'+(dis?' disabled':'');
+        const a=document.createElement('a');   a.className='page-link'; a.href='#';
+        a.textContent=txt; a.onclick=e=>{e.preventDefault();if(!dis)cb();};
+        li.appendChild(a); pager.appendChild(li);
+      }
+      btn('⏮',()=>{currentPage=1;renderPage();renderPager();},currentPage===1);
+      btn('‹', ()=>{if(currentPage>1){currentPage--;renderPage();renderPager();}},currentPage===1);
+      const lo=Math.max(1,currentPage-2), hi=Math.min(total,currentPage+2);
+      for(let p=lo;p<=hi;p++) btn(String(p),()=>{currentPage=p;renderPage();renderPager();},p===currentPage);
+      btn('›',()=>{if(currentPage<total){currentPage++;renderPage();renderPager();}},currentPage===total);
+      btn('⏭',()=>{currentPage=total;renderPage();renderPager();},currentPage===total);
+      document.getElementById('pageInfo').textContent=
+        `Page ${currentPage} of ${total} — ${filtered.length.toLocaleString()} rows`;
+    }
+
+    // ── Status class pills ────────────────────────────────────────────────────
+    document.querySelectorAll('.sc-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        activeSc=btn.getAttribute('data-sc');
+        document.querySelectorAll('.sc-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        applyFilters();
+      });
+    });
+
+    // ── Filter wiring ─────────────────────────────────────────────────────────
+    fMethod  .addEventListener('change', applyFilters);
+    fResource.addEventListener('change', applyFilters);
+    fPagesize.addEventListener('change', ()=>{ pageSize=Number(fPagesize.value); currentPage=1; renderPage(); renderPager(); });
+    document.getElementById('f-search').addEventListener('input', debounce(applyFilters,200));
+    document.getElementById('f-clear').addEventListener('click',()=>{
+      activeSc='all';
+      document.querySelectorAll('.sc-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.sc-btn[data-sc="all"]').classList.add('active');
+      fMethod.value=''; fResource.value='';
+      document.getElementById('f-search').value='';
+      applyFilters();
+    });
+    document.getElementById('sel-all').addEventListener('change', function(){
+      const checks=document.querySelectorAll('.row-select');
+      checks.forEach(cb=>{
+        cb.checked=this.checked;
+        const idx=Number(cb.getAttribute('data-idx'));
+        if(this.checked) selected.add(idx); else selected.delete(idx);
+      });
+    });
+    document.body.addEventListener('change',ev=>{
+      const cb=ev.target.closest('.row-select'); if(!cb) return;
+      const idx=Number(cb.getAttribute('data-idx'));
+      if(cb.checked) selected.add(idx); else selected.delete(idx);
+    });
+
+    // ── Detail modal on cell click ────────────────────────────────────────────
+    document.body.addEventListener('click',ev=>{
+      const cell=ev.target.closest('.cell-content');
+      if(!cell) return;
+      ev.preventDefault();
+      const full=decodeURIComponent(cell.getAttribute('data-full')||'');
+      const tabsEl=document.getElementById('modal-tabs');
+      const bodyEl=document.getElementById('modal-tab-content');
+      tabsEl.innerHTML=''; bodyEl.innerHTML='';
+      // Try JSON pretty-print
+      let rendered;
+      try{ rendered='<pre style="margin:0;white-space:pre-wrap;word-break:break-word">'+esc(JSON.stringify(JSON.parse(full),null,2))+'</pre>'; }
+      catch{ rendered='<pre style="margin:0;white-space:pre-wrap;word-break:break-word">'+esc(full)+'</pre>'; }
+      tabsEl.insertAdjacentHTML('beforeend','<li class="nav-item"><a class="nav-link active" href="#">Content</a></li>');
+      bodyEl.insertAdjacentHTML('beforeend','<div class="tab-pane show active">'+rendered+'</div>');
+      document.getElementById('modal-title').textContent='Full content';
+      new bootstrap.Modal(document.getElementById('detailModal')).show();
+    });
+
+    // ── Exports ───────────────────────────────────────────────────────────────
+    document.getElementById('downloadFiltered').addEventListener('click',()=>{
+      download('filtered-report.json',JSON.stringify(filtered,null,2),'application/json');
+    });
+    document.getElementById('exportSelected').addEventListener('click',()=>{
+      if(!selected.size){ alert('No rows selected'); return; }
+      const objs=allData.filter(o=>selected.has(o.__index));
+      download('selected-report.json',JSON.stringify(objs,null,2),'application/json');
+    });
+
+    // ── Keyboard shortcuts ────────────────────────────────────────────────────
+    document.addEventListener('keydown',e=>{
+      if(e.key==='/'&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)){
+        e.preventDefault(); document.getElementById('f-search').focus();
+      }
+      if(e.key==='Escape'){ document.getElementById('f-search').value=''; applyFilters(); }
+    });
+
+    // ── Initial render ────────────────────────────────────────────────────────
+    document.getElementById('s-show').textContent = allData.length.toLocaleString();
+    renderPager();
+    renderPage();
+  }
+})();
+</script>
+</body>
+</html>
+""";
 }
 }
