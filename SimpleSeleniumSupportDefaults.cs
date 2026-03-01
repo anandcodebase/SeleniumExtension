@@ -72,5 +72,31 @@ namespace SimpleSeleniumSupport
         /// Seeds <see cref="Image.ImageComparisonOptions.Threshold"/>.
         /// </summary>
         public static double VisualThreshold { get; set; } = 95.0;
+
+        // ─── Video recording ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Path to the FFmpeg executable used by <see cref="Recording.LocalVideoRecorder"/>.
+        /// Defaults to <c>"ffmpeg"</c> which relies on FFmpeg being on the system <c>PATH</c>.
+        /// Override with a full path if FFmpeg is not on PATH (e.g. <c>@"C:\tools\ffmpeg\bin\ffmpeg.exe"</c>).
+        /// </summary>
+        public static string VideoRecordingFfmpegPath { get; set; } = "ffmpeg";
+
+        /// <summary>
+        /// Default output directory for recorded video files.
+        /// Used by <see cref="Recording.VideoRecordingOptions.OutputDirectory"/>
+        /// when no explicit directory is provided.
+        /// </summary>
+        public static string VideoRecordingOutputDirectory { get; set; } = "Recordings";
+
+        /// <summary>
+        /// Default frame rate (frames per second) for local screenshot-based recording.
+        /// <para>
+        /// Each WebDriver screenshot takes ~100–300 ms, so values above 10 rarely produce
+        /// smoother video and may cause frame drops on slow machines. 5 fps is reliable in CI.
+        /// </para>
+        /// Seeds <see cref="Recording.VideoRecordingOptions.FrameRate"/>.
+        /// </summary>
+        public static int VideoRecordingFrameRate { get; set; } = 5;
     }
 }
