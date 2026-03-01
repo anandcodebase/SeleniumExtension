@@ -18,7 +18,7 @@ namespace SimpleSeleniumSupport.Reporting
         public static string ExportNetworkInfoToSingleHtml(
             IEnumerable<FullNetworkInfo> items,
             string outFolderRoot,
-            string reportName = null,
+            string? reportName = null,
             int pageSize = 50,
             int maxFieldLength = 200)
         {
@@ -63,7 +63,7 @@ namespace SimpleSeleniumSupport.Reporting
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
-        private static string DictToString(IDictionary<string, string> d)
+        private static string DictToString(IDictionary<string, string>? d)
             => d == null || d.Count == 0 ? "" : string.Join("\n", d.Select(kv => $"{kv.Key}: {kv.Value}"));
 
         private static string MakeSafeFileName(string s)

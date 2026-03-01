@@ -20,7 +20,7 @@ namespace SimpleSeleniumSupport.Reporting
             int pageSize = 250,
             int maxFieldLength = 200, // default 200
             bool emitNdjson = false,
-            string reportName = null)
+            string? reportName = null)
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot)) throw new ArgumentNullException(nameof(outFolderRoot));
             Directory.CreateDirectory(outFolderRoot);
@@ -96,7 +96,7 @@ namespace SimpleSeleniumSupport.Reporting
             return Path.GetFullPath(reportFolder);
         }
 
-        private static string DictToString(IDictionary<string, string> dict)
+        private static string DictToString(IDictionary<string, string>? dict)
         {
             if (dict == null || dict.Count == 0) return "";
             return string.Join("\n", dict.Select(kv => $"{kv.Key}: {kv.Value}"));

@@ -14,10 +14,10 @@ namespace SimpleSeleniumSupport.Selectors.Engine
             Nodes = new List<SelectorNode>(nodes).AsReadOnly();
         }
 
-        public SelectorResult Resolve(IWebDriver driver)
+        public SelectorResult? Resolve(IWebDriver driver)
         {
             ISearchContext context = driver;
-            SelectorResult last = null;
+            SelectorResult? last = null;
 
             foreach (var node in Nodes)
             {

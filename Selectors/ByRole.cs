@@ -12,7 +12,7 @@ namespace SimpleSeleniumSupport.Selectors
     public sealed class ByRole : OpenQA.Selenium.By
     {
         private readonly string _role;
-        private readonly string _name;
+        private readonly string? _name;
         private readonly LocatorOptions _options;
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace SimpleSeleniumSupport.Selectors
             "mark", "section",
         };
 
-        public ByRole(string role, string name, LocatorOptions options)
+        public ByRole(string role, string? name, LocatorOptions options)
         {
             if (string.IsNullOrWhiteSpace(role))
                 throw new ArgumentException("Role must not be null or empty.", nameof(role));
@@ -62,7 +62,7 @@ namespace SimpleSeleniumSupport.Selectors
             _options = options ?? new LocatorOptions();
         }
 
-        public ByRole(string role, string name = null,
+        public ByRole(string role, string? name = null,
             bool exactMatch = false,
             bool caseSensitive = false,
             int timeoutSeconds = 10,

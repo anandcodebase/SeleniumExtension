@@ -17,7 +17,7 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="consoleLogs">Optional console logs collected during the test</param>
         /// <param name="ollamaModel">Model name to call</param>
         /// <returns>AI suggestion text</returns>
-        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string testName = null, Capture capture = null, IEnumerable<ConsoleLogEntry> consoleLogs = null, string ollamaModel = null)
+        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string? testName = null, Capture? capture = null, IEnumerable<ConsoleLogEntry>? consoleLogs = null, string? ollamaModel = null)
         {
             ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             testName ??= "UnnamedTest";
@@ -152,7 +152,7 @@ namespace SimpleSeleniumSupport.AI
             catch { return "[title-access-failed]"; }
         }
 
-        private static string ExtractXPathCandidate(string aiText)
+        private static string? ExtractXPathCandidate(string aiText)
         {
             if (string.IsNullOrWhiteSpace(aiText)) return null;
             // look for a line starting with XPATH_CANDIDATE: or first occurrence of '//' or '/html'

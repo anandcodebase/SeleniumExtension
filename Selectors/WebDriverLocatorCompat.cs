@@ -22,13 +22,13 @@ namespace SimpleSeleniumSupport.Selectors
         public static IWebElement GetByLabel(this IWebDriver driver, string labelText, int timeoutSeconds = DefaultTimeoutSeconds)
         {
             var found = driver.TryGetByLabel(labelText, out var el, timeoutSeconds);
-            if (found) return el;
+            if (found) return el!;
             throw new NoSuchElementException($"Could not find element by label '{labelText}'.");
         }
 
         public static bool TryGetByLabel(this IWebDriver driver, string labelText, out IWebElement element, int timeoutSeconds = DefaultTimeoutSeconds)
         {
-            element = null;
+            element = null!;
             if (driver == null) return false;
 
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)))
@@ -112,13 +112,13 @@ namespace SimpleSeleniumSupport.Selectors
         public static IWebElement GetByPlaceholder(this IWebDriver driver, string placeholder, int timeoutSeconds = DefaultTimeoutSeconds)
         {
             var found = driver.TryGetByPlaceholder(placeholder, out var el, timeoutSeconds);
-            if (found) return el;
+            if (found) return el!;
             throw new NoSuchElementException($"Could not find element by placeholder '{placeholder}'.");
         }
 
         public static bool TryGetByPlaceholder(this IWebDriver driver, string placeholder, out IWebElement element, int timeoutSeconds = DefaultTimeoutSeconds)
         {
-            element = null;
+            element = null!;
             if (driver == null) return false;
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)))
             {
@@ -160,13 +160,13 @@ namespace SimpleSeleniumSupport.Selectors
         public static IWebElement GetByAlt(this IWebDriver driver, string altText, int timeoutSeconds = DefaultTimeoutSeconds)
         {
             var found = driver.TryGetByAlt(altText, out var el, timeoutSeconds);
-            if (found) return el;
+            if (found) return el!;
             throw new NoSuchElementException($"Could not find element by alt='{altText}'.");
         }
 
         public static bool TryGetByAlt(this IWebDriver driver, string altText, out IWebElement element, int timeoutSeconds = DefaultTimeoutSeconds)
         {
-            element = null;
+            element = null!;
             if (driver == null) return false;
 
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)))
@@ -208,13 +208,13 @@ namespace SimpleSeleniumSupport.Selectors
         public static IWebElement GetByTitle(this IWebDriver driver, string title, int timeoutSeconds = DefaultTimeoutSeconds)
         {
             var found = driver.TryGetByTitle(title, out var el, timeoutSeconds);
-            if (found) return el;
+            if (found) return el!;
             throw new NoSuchElementException($"Could not find element by title='{title}'.");
         }
 
         public static bool TryGetByTitle(this IWebDriver driver, string title, out IWebElement element, int timeoutSeconds = DefaultTimeoutSeconds)
         {
-            element = null;
+            element = null!;
             if (driver == null) return false;
 
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)))

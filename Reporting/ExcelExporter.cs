@@ -159,7 +159,7 @@ namespace SimpleSeleniumSupport.Reporting
         /// Helper to create string cells that trims values to Excel's maximum allowed cell length.
         /// Optionally applies a cell style (e.g., wrap).
         /// </summary>
-        private static void CreateStringCell(IRow row, int colIndex, string value, ICellStyle style, int maxCellLength)
+        private static void CreateStringCell(IRow row, int colIndex, string value, ICellStyle? style, int maxCellLength)
         {
             var cell = row.CreateCell(colIndex);
             if (string.IsNullOrEmpty(value))

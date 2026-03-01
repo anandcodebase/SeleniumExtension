@@ -14,7 +14,7 @@ namespace SimpleSeleniumSupport.Selectors
     {
         internal static LocatorOptions DefaultOptions() => new LocatorOptions();
 
-        internal static IWebElement FindElementWithWait(
+        internal static IWebElement? FindElementWithWait(
             ISearchContext context, By by, LocatorOptions options, bool throwOnTimeout = true)
         {
             options ??= DefaultOptions();

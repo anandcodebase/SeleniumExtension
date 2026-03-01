@@ -45,7 +45,7 @@ namespace SimpleSeleniumSupport.Network
                     foreach (var r in requests)
                     {
                         // try to find matching response
-                        ResponseReceived matched = null;
+                        ResponseReceived? matched = null;
                         if (responses != null)
                         {
                             matched = responses.FirstOrDefault(x => !string.IsNullOrEmpty(x.RequestId) && x.RequestId == r.RequestId

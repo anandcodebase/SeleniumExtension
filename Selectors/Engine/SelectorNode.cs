@@ -16,7 +16,7 @@ namespace SimpleSeleniumSupport.Selectors.Engine
             Strategies = strategies.ToList().AsReadOnly();
         }
 
-        public SelectorResult Resolve(ISearchContext context)
+        public SelectorResult? Resolve(ISearchContext context)
         {
             var results = new List<SelectorResult>();
 

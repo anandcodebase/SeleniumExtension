@@ -19,7 +19,7 @@ namespace SimpleSeleniumSupport.Reporting
             ImageComparisonResult result)
         {
             var cardClass = result.Passed ? "vt-pass" : "vt-fail";
-            var safeId    = MakeSafeId(ctx.TestId);
+            var safeId    = MakeSafeId(ctx.TestId ?? "");
 
             html.AppendLine($"<div class='vt {cardClass}' id='{safeId}' data-passed='{result.Passed.ToString().ToLower()}'>");
 
@@ -66,8 +66,8 @@ namespace SimpleSeleniumSupport.Reporting
 
             // Image grid
             html.AppendLine("<div class='vt-imgs'>");
-            ImageBlock(html, "Baseline",       ctx.BaselinePath);
-            ImageBlock(html, "Actual",         ctx.ActualPath);
+            ImageBlock(html, "Baseline",       ctx.BaselinePath ?? "");
+            ImageBlock(html, "Actual",         ctx.ActualPath ?? "");
             if (!string.IsNullOrWhiteSpace(result.HeatmapPath))
                 ImageBlock(html, "Heatmap",    result.HeatmapPath);
             if (!string.IsNullOrWhiteSpace(result.DiffImagePath))
@@ -157,7 +157,7 @@ namespace SimpleSeleniumSupport.Reporting
             return "vt-" + sb.ToString().Trim('-');
         }
 
-        private static string Escape(string s) =>
+        private static string Escape(string? s) =>
             System.Net.WebUtility.HtmlEncode(s ?? "");
 
         // ── Inline CSS ───────────────────────────────────────────────────────

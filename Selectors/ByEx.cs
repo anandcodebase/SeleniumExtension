@@ -10,8 +10,8 @@ namespace SimpleSeleniumSupport.Selectors
     {
         public static OpenQA.Selenium.By Role(
             string role,
-            string accessibleName = null,
-            LocatorOptions options = null)
+            string? accessibleName = null,
+            LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             return new ByRole(role, accessibleName, options);
@@ -19,7 +19,7 @@ namespace SimpleSeleniumSupport.Selectors
 
         public static OpenQA.Selenium.By Role(
             string role,
-            string accessibleName = null,
+            string? accessibleName = null,
             bool exactMatch = false,
             bool caseSensitive = false,
             int timeoutSeconds = 10,
@@ -31,7 +31,7 @@ namespace SimpleSeleniumSupport.Selectors
 
         public static OpenQA.Selenium.By Text(
             string text,
-            LocatorOptions options = null)
+            LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             return new ByText(text, options);
@@ -48,7 +48,7 @@ namespace SimpleSeleniumSupport.Selectors
             return new ByText(text, exactMatch, caseSensitive, timeoutSeconds, pollingMs, wait);
         }
 
-        public static OpenQA.Selenium.By TestId(string testId, LocatorOptions options = null)
+        public static OpenQA.Selenium.By TestId(string testId, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             return new ByTestId(testId, options);

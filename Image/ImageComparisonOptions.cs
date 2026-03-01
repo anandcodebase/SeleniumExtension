@@ -15,9 +15,9 @@ namespace SimpleSeleniumSupport.Image
         public string Provider { get; set; } = "ollama";
         public int TimeoutSeconds { get; set; } = 300;
 
-        public string OllamaBaseUrl { get; set; }
-        public string OllamaModel { get; set; }
-        public string OllamaApiKey { get; set; }
+        public string? OllamaBaseUrl { get; set; }
+        public string? OllamaModel { get; set; }
+        public string? OllamaApiKey { get; set; }
         public string OllamaAuthHeader { get; set; } = "Authorization";
         public string OllamaAuthScheme { get; set; } = "Bearer";
 
@@ -28,7 +28,7 @@ namespace SimpleSeleniumSupport.Image
         public List<Rectangle> CompareRegions { get; } = new();
         public List<Rectangle> IgnoreRegions { get; } = new();
 
-        public string VisualDiffOutputDirectory { get; set; }
+        public string? VisualDiffOutputDirectory { get; set; }
 
         // ================= SCORING WEIGHTS =================
 

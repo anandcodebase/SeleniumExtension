@@ -11,7 +11,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// Returns the first matching element whose own text (not descendant-only text) matches the given text.
         /// Uses LocatorOptions for exact/contains and case sensitivity behavior.
         /// </summary>
-        public static IWebElement GetByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        public static IWebElement GetByText(this IWebDriver driver, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
@@ -23,7 +23,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Try-get variant: returns null if not found.
         /// </summary>
-        public static IWebElement TryGetByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        public static IWebElement? TryGetByText(this IWebDriver driver, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
@@ -33,7 +33,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Returns all matching elements whose own text matches the provided text.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebDriver driver, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var list = FindElementsByTextDirectMatch(driver, text, options);
@@ -45,7 +45,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Try-get-all variant: returns empty collection if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebDriver driver, string text, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebDriver driver, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             return FindElementsByTextDirectMatch(driver, text, options);
@@ -102,7 +102,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Checks whether the element is a "best" match:
         /// - element has visible/non-empty text
-        /// - none of its element children themselves contain the same matching text (so we avoid returning <body>)
+        /// - none of its element children themselves contain the same matching text (so we avoid returning &lt;body&gt;)
         /// </summary>
         private static bool IsBestTextMatch(IWebElement element, string needle, LocatorOptions options)
         {

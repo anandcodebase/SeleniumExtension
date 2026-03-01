@@ -25,11 +25,11 @@ namespace SimpleSeleniumSupport.Image
         public Rectangle? RegionCompared { get; set; }
 
         // ================= REASONING =================
-        public string Reasoning { get; set; }
-        public string AiReasoning { get; set; }
+        public string? Reasoning { get; set; }
+        public string? AiReasoning { get; set; }
 
         // ================= ARTIFACTS =================
-        public string HeatmapPath { get; set; }
-        public string DiffImagePath { get; set; }
+        public string? HeatmapPath { get; set; }
+        public string? DiffImagePath { get; set; }
     }
 }

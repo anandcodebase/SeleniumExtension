@@ -49,7 +49,7 @@ namespace SimpleSeleniumSupport.AI
         /// <value>
         /// The configure request.
         /// </value>
-        public static Action<HttpRequestMessage> ConfigureRequest { get; set; }
+        public static Action<HttpRequestMessage>? ConfigureRequest { get; set; }
 
         /// <summary>
         /// Generates the specified prompt (synchronous wrapper around <see cref="GenerateAsync"/>).

@@ -19,7 +19,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// Use this to route diagnostics to your test framework's logger.
         /// Parameters: (exception, context message)
         /// </summary>
-        public static Action<Exception, string> OnError { get; set; }
+        public static Action<Exception, string>? OnError { get; set; }
 
         // Tracks which (driver instance, page URL) pairs have already had the helper injected.
         // ConditionalWeakTable ensures no memory leak when a driver instance is GC'd.
@@ -45,7 +45,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="options">The options.</param>
         /// <returns></returns>
         /// <exception cref="OpenQA.Selenium.NoSuchElementException">No element found with role='{role}' name='{accessibleName}'</exception>
-        public static IWebElement GetByRole(this IWebDriver driver, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IWebElement GetByRole(this IWebDriver driver, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             var el = driver.TryGetByRole(role, accessibleName, options);
             if (el == null) throw new NoSuchElementException($"No element found with role='{role}' name='{accessibleName}'");
@@ -60,7 +60,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="accessibleName">Name of the accessible.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static IWebElement TryGetByRole(this IWebDriver driver, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IWebElement? TryGetByRole(this IWebDriver driver, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByRoleAndName(driver, role, accessibleName, options);
@@ -76,11 +76,11 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="accessibleName">Name of the accessible.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static bool TryGetByRole(this IWebDriver driver, string role, out IWebElement element, string accessibleName = null, LocatorOptions options = null)
+        public static bool TryGetByRole(this IWebDriver driver, string role, out IWebElement element, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByRoleAndName(driver, role, accessibleName, options);
-            element = list.FirstOrDefault();
+            element = list.FirstOrDefault()!;
             return element != null;
         }
 
@@ -92,7 +92,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="accessibleName">Name of the accessible.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static (bool found, IWebElement element) TryGetByRoleTuple(this IWebDriver driver, string role, string accessibleName = null, LocatorOptions options = null)
+        public static (bool found, IWebElement? element) TryGetByRoleTuple(this IWebDriver driver, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByRoleAndName(driver, role, accessibleName, options);
@@ -109,7 +109,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="options">The options.</param>
         /// <returns></returns>
         /// <exception cref="OpenQA.Selenium.NoSuchElementException">No elements found with role='{role}' name='{accessibleName}'</exception>
-        public static IReadOnlyCollection<IWebElement> GetAllByRole(this IWebDriver driver, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByRole(this IWebDriver driver, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByRoleAndName(driver, role, accessibleName, options);
@@ -125,7 +125,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="accessibleName">Name of the accessible.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByRole(this IWebDriver driver, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByRole(this IWebDriver driver, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             return FindElementsByRoleAndName(driver, role, accessibleName, options);
@@ -141,11 +141,11 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="element">The element.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static bool TryGetByText(this IWebDriver driver, string text, out IWebElement element, LocatorOptions options = null)
+        public static bool TryGetByText(this IWebDriver driver, string text, out IWebElement element, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByText(driver, text, options);
-            element = list.FirstOrDefault();
+            element = list.FirstOrDefault()!;
             return element != null;
         }
 
@@ -156,7 +156,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="text">The text.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static (bool found, IWebElement element) TryGetByTextTuple(this IWebDriver driver, string text, LocatorOptions options = null)
+        public static (bool found, IWebElement? element) TryGetByTextTuple(this IWebDriver driver, string text, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var list = FindElementsByText(driver, text, options);
@@ -173,7 +173,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="options">The options.</param>
         /// <returns></returns>
         /// <exception cref="OpenQA.Selenium.NoSuchElementException">No element found with testId='{testId}'</exception>
-        public static IWebElement GetByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
+        public static IWebElement GetByTestId(this IWebDriver driver, string testId, LocatorOptions? options = null)
         {
             var el = driver.TryGetByTestId(testId, options);
             if (el == null) throw new NoSuchElementException($"No element found with testId='{testId}'");
@@ -187,7 +187,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="testId">The test identifier.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static IWebElement TryGetByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
+        public static IWebElement? TryGetByTestId(this IWebDriver driver, string testId, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
@@ -202,7 +202,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="testId">The test identifier.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebDriver driver, string testId, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
@@ -216,7 +216,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="testId">The test identifier.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebDriver driver, string testId, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebDriver driver, string testId, LocatorOptions? options = null)
         {
             options ??= DefaultOptions();
             var escaped = CssEscaper.EscapeAttributeValue(testId);
@@ -235,7 +235,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <param name="accessibleName">Name of the accessible.</param>
         /// <param name="options">The options.</param>
         /// <returns></returns>
-        private static IReadOnlyCollection<IWebElement> FindElementsByRoleAndName(IWebDriver driver, string role, string accessibleName, LocatorOptions options)
+        private static IReadOnlyCollection<IWebElement> FindElementsByRoleAndName(IWebDriver driver, string role, string? accessibleName, LocatorOptions options)
         {
             options ??= DefaultOptions();
 
@@ -503,7 +503,7 @@ findByRole: function(role, name, exact, caseSensitive){
         /// </summary>
         /// <param name="raw">The raw.</param>
         /// <returns></returns>
-        private static IReadOnlyCollection<IWebElement> ScriptResultToElementList(object raw)
+        private static IReadOnlyCollection<IWebElement> ScriptResultToElementList(object? raw)
         {
             if (raw == null) return Array.Empty<IWebElement>();
             if (raw is IWebElement single) return new List<IWebElement> { single }.AsReadOnly();

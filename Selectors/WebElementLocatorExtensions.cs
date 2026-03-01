@@ -19,7 +19,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by ARIA role within this element. Throws if not found.
         /// </summary>
-        public static IWebElement GetByRole(this IWebElement element, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IWebElement GetByRole(this IWebElement element, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             var el = element.TryGetByRole(role, accessibleName, options);
             if (el == null)
@@ -30,7 +30,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by ARIA role within this element. Returns null if not found.
         /// </summary>
-        public static IWebElement TryGetByRole(this IWebElement element, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IWebElement? TryGetByRole(this IWebElement element, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByRole(role, accessibleName, options);
@@ -40,16 +40,16 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by ARIA role within this element. Returns result via out parameter.
         /// </summary>
-        public static bool TryGetByRole(this IWebElement element, string role, out IWebElement found, string accessibleName = null, LocatorOptions options = null)
+        public static bool TryGetByRole(this IWebElement element, string role, out IWebElement found, string? accessibleName = null, LocatorOptions? options = null)
         {
-            found = element.TryGetByRole(role, accessibleName, options);
+            found = element.TryGetByRole(role, accessibleName, options)!;
             return found != null;
         }
 
         /// <summary>
         /// Finds all elements by ARIA role within this element. Throws if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> GetAllByRole(this IWebElement element, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByRole(this IWebElement element, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByRole(role, accessibleName, options);
@@ -62,7 +62,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds all elements by ARIA role within this element. Returns empty if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByRole(this IWebElement element, string role, string accessibleName = null, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByRole(this IWebElement element, string role, string? accessibleName = null, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByRole(role, accessibleName, options);
@@ -76,7 +76,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by text content within this element. Throws if not found.
         /// </summary>
-        public static IWebElement GetByText(this IWebElement element, string text, LocatorOptions options = null)
+        public static IWebElement GetByText(this IWebElement element, string text, LocatorOptions? options = null)
         {
             var el = element.TryGetByText(text, options);
             if (el == null)
@@ -87,7 +87,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by text content within this element. Returns null if not found.
         /// </summary>
-        public static IWebElement TryGetByText(this IWebElement element, string text, LocatorOptions options = null)
+        public static IWebElement? TryGetByText(this IWebElement element, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByText(text, options);
@@ -97,16 +97,16 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by text content within this element. Returns result via out parameter.
         /// </summary>
-        public static bool TryGetByText(this IWebElement element, string text, out IWebElement found, LocatorOptions options = null)
+        public static bool TryGetByText(this IWebElement element, string text, out IWebElement found, LocatorOptions? options = null)
         {
-            found = element.TryGetByText(text, options);
+            found = element.TryGetByText(text, options)!;
             return found != null;
         }
 
         /// <summary>
         /// Finds all elements by text content within this element. Throws if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebElement element, string text, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByText(this IWebElement element, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByText(text, options);
@@ -119,7 +119,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds all elements by text content within this element. Returns empty if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebElement element, string text, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByText(this IWebElement element, string text, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByText(text, options);
@@ -133,7 +133,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by test ID within this element. Throws if not found.
         /// </summary>
-        public static IWebElement GetByTestId(this IWebElement element, string testId, LocatorOptions options = null)
+        public static IWebElement GetByTestId(this IWebElement element, string testId, LocatorOptions? options = null)
         {
             var el = element.TryGetByTestId(testId, options);
             if (el == null)
@@ -144,7 +144,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds an element by test ID within this element. Returns null if not found.
         /// </summary>
-        public static IWebElement TryGetByTestId(this IWebElement element, string testId, LocatorOptions options = null)
+        public static IWebElement? TryGetByTestId(this IWebElement element, string testId, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByTestId(testId, options);
@@ -154,7 +154,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds all elements by test ID within this element. Throws if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebElement element, string testId, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> GetAllByTestId(this IWebElement element, string testId, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByTestId(testId, options);
@@ -167,7 +167,7 @@ namespace SimpleSeleniumSupport.Selectors
         /// <summary>
         /// Finds all elements by test ID within this element. Returns empty if none found.
         /// </summary>
-        public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebElement element, string testId, LocatorOptions options = null)
+        public static IReadOnlyCollection<IWebElement> TryGetAllByTestId(this IWebElement element, string testId, LocatorOptions? options = null)
         {
             options ??= new LocatorOptions();
             var by = new ByTestId(testId, options);

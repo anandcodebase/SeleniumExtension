@@ -26,7 +26,7 @@ namespace SimpleSeleniumSupport.Network
         /// <summary>
         /// The network interceptor
         /// </summary>
-        private INetwork _networkInterceptor;
+        private INetwork? _networkInterceptor;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Capture"/> class.
@@ -91,19 +91,19 @@ namespace SimpleSeleniumSupport.Network
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="NetworkResponseReceivedEventArgs"/> instance containing the event data.</param>
-        private void ResponseReceivedHandler(object sender, NetworkResponseReceivedEventArgs e)
+        private void ResponseReceivedHandler(object? sender, NetworkResponseReceivedEventArgs e)
         {
             var response = new ResponseReceived
             {
                 RequestId = e.RequestId,
                 ResponseUrl = e.ResponseUrl,
                 ResponseStatusCode = e.ResponseStatusCode,
-                ResponseHeaders = e.ResponseHeaders.ToDictionary(k => k.Key, v => v.Value.ToString()),
-                ResponseResourceType = e.ResponseResourceType.ToString(),
+                ResponseHeaders = e.ResponseHeaders?.ToDictionary(k => k.Key, v => v.Value.ToString()),
+                ResponseResourceType = e.ResponseResourceType?.ToString(),
                 ResponseBody = e.ResponseBody,
                 ResponseTimestamp = DateTime.Now
             };
-            _responseReceivedMap.TryAdd(e.RequestId, response);
+            if (e.RequestId != null) _responseReceivedMap.TryAdd(e.RequestId, response);
         }
 
         /// <summary>
@@ -111,18 +111,18 @@ namespace SimpleSeleniumSupport.Network
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="NetworkRequestSentEventArgs"/> instance containing the event data.</param>
-        private void RequestSentHandler(object sender, NetworkRequestSentEventArgs e)
+        private void RequestSentHandler(object? sender, NetworkRequestSentEventArgs e)
         {
             var request = new RequestSent
             {
                 RequestId = e.RequestId,
                 RequestUrl = e.RequestUrl,
                 RequestMethod = e.RequestMethod,
-                RequestHeaders = e.RequestHeaders.ToDictionary(k => k.Key, v => v.Value.ToString()),
+                RequestHeaders = e.RequestHeaders?.ToDictionary(k => k.Key, v => v.Value.ToString()),
                 RequestPostData = e.RequestPostData,
                 RequestTimestamp = DateTime.Now
             };
-            _requestSentMap.TryAdd(e.RequestId, request);
+            if (e.RequestId != null) _requestSentMap.TryAdd(e.RequestId, request);
         }
 
         /// <summary>
@@ -174,7 +174,7 @@ namespace SimpleSeleniumSupport.Network
             return wait.Until(d =>
             {
                 return GetCombinedNetworkInfo()
-                    .FirstOrDefault(info => info.RequestUrl.Contains(urlPart) && info.ResponseStatusCode != 0);
+                    .FirstOrDefault(info => (info.RequestUrl?.Contains(urlPart) == true) && info.ResponseStatusCode != 0);
             });
         }
 

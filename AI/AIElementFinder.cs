@@ -51,7 +51,7 @@ namespace SimpleSeleniumSupport.AI
         /// Use this to route diagnostics to your test framework's logger.
         /// Parameters: (exception, context message)
         /// </summary>
-        public static Action<Exception, string> OnError { get; set; }
+        public static Action<Exception, string>? OnError { get; set; }
 
         /// <summary>
         /// Find a single element by a natural language description (immediate).
@@ -61,7 +61,7 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="description">The description.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IWebElement FindElementByAI(this IWebDriver driver, string description, string ollamaModel = null)
+        public static IWebElement FindElementByAI(this IWebDriver driver, string description, string? ollamaModel = null)
             => FindElementByAI(driver, description, ollamaModel ?? SimpleSeleniumSupportDefaults.OllamaModel, DefaultRetries);
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace SimpleSeleniumSupport.AI
                 }
             }
 
-            Exception lastException = null;
+            Exception? lastException = null;
             for (int attempt = 0; attempt <= retries; attempt++)
             {
                 try
@@ -107,7 +107,7 @@ namespace SimpleSeleniumSupport.AI
                     if (UseCache)
                         _selectorCache[key] = xpath;
 
-                    Console.WriteLine($"✅ AI generated XPath: {xpath}");
+                    Console.WriteLine($" AI generated XPath: {xpath}");
                     return element;
                 }
                 catch (Exception ex)
@@ -141,7 +141,7 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="timeoutInSeconds">The timeout in seconds.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IWebElement WaitAndFindByAI(this IWebDriver driver, string description, int timeoutInSeconds = -1, string ollamaModel = null)
+        public static IWebElement WaitAndFindByAI(this IWebDriver driver, string description, int timeoutInSeconds = -1, string? ollamaModel = null)
         {
             ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             if (timeoutInSeconds <= 0) timeoutInSeconds = DefaultWaitTimeoutSeconds;
@@ -173,7 +173,7 @@ namespace SimpleSeleniumSupport.AI
         public static Task<IWebElement> FindElementByAIAsync(
             this IWebDriver driver,
             string description,
-            string ollamaModel = null,
+            string? ollamaModel = null,
             CancellationToken cancellationToken = default)
             => FindElementByAIAsync(driver, description, ollamaModel ?? SimpleSeleniumSupportDefaults.OllamaModel, DefaultRetries, cancellationToken);
 
@@ -198,7 +198,7 @@ namespace SimpleSeleniumSupport.AI
                 }
             }
 
-            Exception lastException = null;
+            Exception? lastException = null;
             for (int attempt = 0; attempt <= retries; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -213,7 +213,7 @@ namespace SimpleSeleniumSupport.AI
 
                     var element = driver.FindElement(By.XPath(xpath));
                     if (UseCache) _selectorCache[key] = xpath;
-                    Console.WriteLine($"✅ AI generated XPath: {xpath}");
+                    Console.WriteLine($" AI generated XPath: {xpath}");
                     return element;
                 }
                 catch (Exception ex)
@@ -250,7 +250,7 @@ namespace SimpleSeleniumSupport.AI
             this IWebDriver driver,
             string description,
             int timeoutInSeconds = -1,
-            string ollamaModel = null,
+            string? ollamaModel = null,
             CancellationToken cancellationToken = default)
         {
             ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
@@ -285,7 +285,7 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="description">The description.</param>
         /// <param name="ollamaModel">The ollama model.</param>
         /// <returns></returns>
-        public static IReadOnlyCollection<IWebElement> FindElementsByAI(this IWebDriver driver, string description, string ollamaModel = null)
+        public static IReadOnlyCollection<IWebElement> FindElementsByAI(this IWebDriver driver, string description, string? ollamaModel = null)
         {
             ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             string prompt = BuildPromptForSelector(driver, description) + "\nNote: If multiple matching elements exist, return an XPath that selects all matching nodes.";
@@ -353,7 +353,7 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="driver">The driver.</param>
         /// <param name="description">The description.</param>
         /// <returns></returns>
-        private static IWebElement HeuristicFind(IWebDriver driver, string description)
+        private static IWebElement? HeuristicFind(IWebDriver driver, string description)
         {
             // Very small heuristic: look for id="..." or name="..." tokens in the description
             // Example: "login button" -> try //button[contains(translate(.,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"), 'login')]

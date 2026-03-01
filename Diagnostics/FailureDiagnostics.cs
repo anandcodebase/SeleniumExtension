@@ -18,7 +18,7 @@ namespace SimpleSeleniumSupport.Diagnostics
         /// <param name="consoleLogs">The console logs.</param>
         /// <param name="baseFolder">The base folder.</param>
         /// <returns></returns>
-        public static string SaveDiagnostics(IWebDriver driver, Capture capture = null, IEnumerable<ConsoleLogEntry> consoleLogs = null, string baseFolder = "Diagnostics")
+        public static string SaveDiagnostics(IWebDriver driver, Capture? capture = null, IEnumerable<ConsoleLogEntry>? consoleLogs = null, string baseFolder = "Diagnostics")
         {
             var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
             var folder = Path.Combine(baseFolder, $"failure_{ts}");

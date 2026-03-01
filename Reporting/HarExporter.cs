@@ -117,7 +117,7 @@ namespace SimpleSeleniumSupport.Reporting
         /// </summary>
         /// <param name="headers">The headers.</param>
         /// <returns></returns>
-        private static object[] SerializeHeaders(IDictionary<string, string> headers)
+        private static object[] SerializeHeaders(IDictionary<string, string>? headers)
         {
             if (headers == null) return Array.Empty<object>();
             return headers.Select(kv => new { name = kv.Key ?? "", value = kv.Value ?? "" }).ToArray();
@@ -128,7 +128,7 @@ namespace SimpleSeleniumSupport.Reporting
         /// </summary>
         /// <param name="url">The URL.</param>
         /// <returns></returns>
-        private static object[] BuildQueryStringFromUrl(string url)
+        private static object[] BuildQueryStringFromUrl(string? url)
         {
             try
             {

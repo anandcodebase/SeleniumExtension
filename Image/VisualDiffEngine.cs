@@ -35,7 +35,7 @@ namespace SimpleSeleniumSupport.Image
             public bool GenerateHeatmap { get; set; } = true;
 
             /// <summary>Directory to save artifacts (null => temp)</summary>
-            public string OutputDirectory { get; set; }
+            public string? OutputDirectory { get; set; }
 
             /// <summary>Pixel radius for anti-aliasing neighbor check (0 = disabled)</summary>
             public int AntiAliasingTolerance { get; set; } = 0;
@@ -53,8 +53,8 @@ namespace SimpleSeleniumSupport.Image
             public int PixelDiffCount { get; set; }
             public int TotalPixels { get; set; }
             public string Reasoning { get; set; } = "";
-            public string HeatmapPath { get; set; }
-            public string DiffImagePath { get; set; }
+            public string? HeatmapPath { get; set; }
+            public string? DiffImagePath { get; set; }
         }
 
         // ===================== PIXEL BUFFER (FAST ACCESS) =====================
@@ -102,7 +102,7 @@ namespace SimpleSeleniumSupport.Image
 
         // ===================== PUBLIC ENTRY =====================
 
-        public static Result Compare(byte[] expectedBytes, byte[] actualBytes, Options opt = null)
+        public static Result Compare(byte[] expectedBytes, byte[] actualBytes, Options? opt = null)
         {
             opt ??= new Options();
 
@@ -451,7 +451,7 @@ namespace SimpleSeleniumSupport.Image
 
         // ===================== HEATMAP (FULL COLOR) =====================
 
-        private static string GenerateHeatmap(Bitmap a, Bitmap b, string outputDir)
+        private static string GenerateHeatmap(Bitmap a, Bitmap b, string? outputDir)
         {
             // Maximum possible Euclidean distance in RGB space:
             //   sqrt(255^2 + 255^2 + 255^2) = sqrt(195075) ≈ 441.6729...
@@ -525,9 +525,9 @@ namespace SimpleSeleniumSupport.Image
         // ===================== SIDE-BY-SIDE COMPOSITE =====================
 
         private static string GenerateSideBySide(
-            Bitmap baseline, Bitmap actual, string heatmapPath, string outputDir)
+            Bitmap baseline, Bitmap actual, string? heatmapPath, string? outputDir)
         {
-            Bitmap heatmap = null;
+            Bitmap? heatmap = null;
             try
             {
                 if (!string.IsNullOrEmpty(heatmapPath) && File.Exists(heatmapPath))
