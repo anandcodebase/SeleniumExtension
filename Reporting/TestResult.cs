@@ -120,6 +120,20 @@ namespace SimpleSeleniumSupport.Reporting
         /// </summary>
         public string? AiAnalysis { get; set; }
 
+        // ── Consolidation ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Optional run label used when merging results from multiple test runs into one
+        /// consolidated report (e.g. <c>"Chrome"</c>, <c>"Firefox"</c>, <c>"Regression"</c>).
+        /// <para>
+        /// When any result in the collection passed to
+        /// <see cref="TestRunReportExporter.Export"/> has this property set, the report
+        /// automatically gains a per-run summary bar, a Run column in the grid, and a
+        /// Run filter dropdown.
+        /// </para>
+        /// </summary>
+        public string? RunName { get; set; }
+
         // ── Custom / extensible ───────────────────────────────────────────────
 
         /// <summary>

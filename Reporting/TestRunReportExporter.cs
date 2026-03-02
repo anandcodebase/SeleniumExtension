@@ -64,6 +64,21 @@ namespace SimpleSeleniumSupport.Reporting
                 JsonSerializer.Serialize(rows, jsonOptions),
                 Encoding.UTF8);
 
+            // ── Per-run breakdown (populated when any result has RunName) ─────
+            var runGroups = list
+                .Where(r => !string.IsNullOrEmpty(r.RunName))
+                .GroupBy(r => r.RunName!)
+                .Select(g => new {
+                    runName = g.Key,
+                    total   = g.Count(),
+                    pass    = g.Count(r => r.Status == TestStatus.Pass),
+                    fail    = g.Count(r => r.Status == TestStatus.Fail),
+                    skip    = g.Count(r => r.Status == TestStatus.Skip),
+                    error   = g.Count(r => r.Status == TestStatus.Error)
+                })
+                .ToList();
+            var runsJson = JsonSerializer.Serialize(runGroups, jsonOptions);
+
             // ── manifest.json ──────────────────────────────────────────────────
             var manifest = new
             {
@@ -73,7 +88,8 @@ namespace SimpleSeleniumSupport.Reporting
                 failed       = list.Count(x => x.Status == TestStatus.Fail),
                 skipped      = list.Count(x => x.Status == TestStatus.Skip),
                 errors       = list.Count(x => x.Status == TestStatus.Error),
-                generatedUtc = DateTime.UtcNow.ToString("o")
+                generatedUtc = DateTime.UtcNow.ToString("o"),
+                runs         = runGroups
             };
             File.WriteAllText(
                 Path.Combine(reportFolder, "manifest.json"),
@@ -83,7 +99,8 @@ namespace SimpleSeleniumSupport.Reporting
             // ── index.html ────────────────────────────────────────────────────
             var html = GetTemplate()
                 .Replace("[[REPORT_NAME]]", HtmlEnc(reportName ?? safeName))
-                .Replace("[[GEN_TIME]]",    DateTime.UtcNow.ToString("u"));
+                .Replace("[[GEN_TIME]]",    DateTime.UtcNow.ToString("u"))
+                .Replace("[[RUNS_JSON]]",   runsJson);
             File.WriteAllText(Path.Combine(reportFolder, "index.html"), html, Encoding.UTF8);
 
             return Path.GetFullPath(reportFolder);
@@ -94,6 +111,7 @@ namespace SimpleSeleniumSupport.Reporting
         private static object BuildRow(TestResult r, int idx) => new
         {
             __index        = idx,
+            runName        = r.RunName        ?? "",
             testName       = r.TestName,
             testSuite      = r.TestSuite      ?? "",
             fullName       = r.FullName       ?? "",
@@ -224,6 +242,19 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
 #lightbox-close{position:absolute;top:14px;right:20px;font-size:28px;color:#fff;cursor:pointer;line-height:1}
 /* Hidden index col */
 .gridjs-th:first-child,.gridjs-td:first-child{width:0!important;max-width:0;overflow:hidden;padding:0;border:none}
+/* ── Runs bar ── */
+#runsBar{display:none;padding:8px 20px;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto}
+.runs-scroll{display:flex;gap:8px;min-width:max-content}
+.run-card{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 14px;min-width:150px;cursor:pointer;transition:.12s;user-select:none}
+.run-card:hover{border-color:#94a3b8;background:#f1f5f9}
+.run-card.active{border-color:#1e293b;background:#e2e8f0}
+.run-name{font-weight:700;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.run-stats{font-size:11px;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap}
+.run-rate{font-size:10px;color:#64748b;margin-top:3px;text-align:right}
+.run-progbar{height:3px;border-radius:2px;background:#e2e8f0;margin-top:3px}
+.run-progfill{height:3px;border-radius:2px}
+/* Run badge in grid */
+.run-badge{background:#e0e7ff;color:#3730a3;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -251,6 +282,9 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
   <div id="load-msg" style="margin-left:auto;color:#64748b;font-size:12px">Loading…</div>
 </div>
 
+<!-- ── Runs bar (shown only when RunName is set on results) ───────────── -->
+<div id="runsBar"><div class="runs-scroll" id="runsScroll"></div></div>
+
 <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
 <div id="filterBar">
   <div class="st-pills">
@@ -264,6 +298,7 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
   <select id="f-cat"     class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">All Categories</option></select>
   <select id="f-browser" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">All Browsers</option></select>
   <select id="f-env"     class="form-select form-select-sm" style="width:auto;min-width:110px"><option value="">All Envs</option></select>
+  <select id="f-run"     class="form-select form-select-sm" style="display:none;width:auto;min-width:120px"><option value="">All Runs</option></select>
   <input  id="f-search"  class="form-control form-control-sm" placeholder="Search… (press /)" style="width:200px"/>
   <select id="f-pagesize"class="form-select form-select-sm" style="width:100px"></select>
   <button id="f-clear"   class="btn btn-sm btn-outline-secondary">Clear</button>
@@ -396,10 +431,13 @@ let activeSuite  = '';
 let activeCat    = '';
 let activeBrowser= '';
 let activeEnv    = '';
+let activeRun    = '';
 let searchTerm   = '';
 let pageSize     = 50;
 let grid;
 const PAGE_SIZES = [25, 50, 100, 250, 500];
+const RUNS_DATA  = [[RUNS_JSON]];          // per-run summary; empty = no run grouping
+const HAS_RUNS   = RUNS_DATA.length >= 1;  // true = at least one RunName present
 
 // ── Load ───────────────────────────────────────────────────────────────
 fetch('data.json')
@@ -421,6 +459,13 @@ function populateDropdowns(){
   fillSelect('f-cat',     unique(ALL_ROWS, r => r.category).sort());
   fillSelect('f-browser', unique(ALL_ROWS, r => r.browser).sort());
   fillSelect('f-env',     unique(ALL_ROWS, r => r.environment).sort());
+  if(HAS_RUNS){
+    const runEl = document.getElementById('f-run');
+    RUNS_DATA.forEach(rd => { const o=document.createElement('option'); o.value=rd.runName; o.textContent=rd.runName; runEl.appendChild(o); });
+    runEl.style.display='';
+    document.getElementById('runsBar').style.display='';
+    renderRunsBar();
+  }
   const ps = document.getElementById('f-pagesize');
   PAGE_SIZES.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n+' / page'; if(n===pageSize)o.selected=true; ps.appendChild(o); });
 }
@@ -439,7 +484,8 @@ function applyFilters(){
     if(activeCat     && r.category    !== activeCat)     return false;
     if(activeBrowser && r.browser     !== activeBrowser) return false;
     if(activeEnv     && r.environment !== activeEnv)     return false;
-    if(q && ![r.testName,r.testSuite,r.fullName,r.category,r.tags,r.browser,r.exceptionMsg].some(f=>f&&f.toLowerCase().includes(q))) return false;
+    if(activeRun     && r.runName     !== activeRun)     return false;
+    if(q && ![r.testName,r.testSuite,r.fullName,r.category,r.tags,r.browser,r.runName,r.exceptionMsg].some(f=>f&&f.toLowerCase().includes(q))) return false;
     return true;
   });
   renderGrid(FILTERED);
@@ -476,6 +522,7 @@ function renderGrid(rows){
   const data = rows.map(r => [
     r.__index,           // 0 hidden
     '#'+(rows.indexOf(r)+1),
+    r.runName,           // 2 run (hidden when !HAS_RUNS)
     r.testName,
     r.testSuite,
     r.status,
@@ -493,9 +540,11 @@ function renderGrid(rows){
     columns: [
       { id:'__idx', name:'', hidden:true },
       { id:'num',   name:'#',         width:'50px',  sort:false },
-      { id:'name',  name:'Test Name', width:'260px',
+      { id:'run',   name:'Run',       width:'110px', hidden:!HAS_RUNS,
+        formatter: cell=>gridjs.html(cell ? `<span class="run-badge">${esc(cell)}</span>` : '') },
+      { id:'name',  name:'Test Name', width:'240px',
         formatter:(cell,row)=>gridjs.html(`<span class="cell-link" data-idx="${row.cells[0].data}">${esc(cell)}</span>`) },
-      { id:'suite', name:'Suite',     width:'160px' },
+      { id:'suite', name:'Suite',     width:'150px' },
       { id:'status',name:'Status',    width:'80px',
         formatter: cell=>gridjs.html(statusBadge(cell)) },
       { id:'dur',   name:'Duration',  width:'90px' },
@@ -515,6 +564,35 @@ function renderGrid(rows){
     if(el) openDetail(parseInt(el.dataset.idx));
   });
 }
+
+// ── Runs bar renderer ──────────────────────────────────────────────────
+function renderRunsBar(){
+  const scroll = document.getElementById('runsScroll');
+  scroll.innerHTML = RUNS_DATA.map(rd => {
+    const pct    = rd.total ? Math.round(rd.pass / rd.total * 100) : 0;
+    const barClr = pct === 100 ? '#198754' : pct >= 80 ? '#ffc107' : '#dc3545';
+    const isActive = activeRun === rd.runName;
+    return `<div class="run-card${isActive?' active':''}" onclick="toggleRunFilter('${esc(rd.runName)}')">
+      <div class="run-name" title="${esc(rd.runName)}">${esc(rd.runName)}</div>
+      <div class="run-stats">
+        <span style="color:var(--c-pass)">${rd.pass}✓</span>
+        ${rd.fail  ? `<span style="color:var(--c-fail)">${rd.fail}✗</span>` : ''}
+        ${rd.skip  ? `<span style="color:var(--c-skip)">${rd.skip}⊘</span>` : ''}
+        ${rd.error ? `<span style="color:var(--c-error)">${rd.error}!</span>` : ''}
+      </div>
+      <div class="run-progbar"><div class="run-progfill" style="width:${pct}%;background:${barClr}"></div></div>
+      <div class="run-rate">${pct}% pass · ${rd.total} test${rd.total!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+}
+window.toggleRunFilter = function(run){
+  activeRun = (activeRun === run) ? '' : run;
+  document.getElementById('f-run').value = activeRun;
+  document.querySelectorAll('.run-card').forEach(c =>
+    c.classList.toggle('active', activeRun !== '' && c.querySelector('.run-name').title === activeRun)
+  );
+  applyFilters();
+};
 
 function statusBadge(s){
   const cls = {Pass:'pass',Fail:'fail',Skip:'skip',Error:'error'}[s]||'skip';
@@ -702,18 +780,27 @@ document.getElementById('f-suite'  ).addEventListener('change',e=>{ activeSuite 
 document.getElementById('f-cat'    ).addEventListener('change',e=>{ activeCat    =e.target.value; applyFilters(); });
 document.getElementById('f-browser').addEventListener('change',e=>{ activeBrowser=e.target.value; applyFilters(); });
 document.getElementById('f-env'    ).addEventListener('change',e=>{ activeEnv    =e.target.value; applyFilters(); });
+document.getElementById('f-run'    ).addEventListener('change',e=>{
+  activeRun = e.target.value;
+  document.querySelectorAll('.run-card').forEach(c =>
+    c.classList.toggle('active', activeRun !== '' && c.querySelector('.run-name').title === activeRun)
+  );
+  applyFilters();
+});
 document.getElementById('f-search' ).addEventListener('input', e=>{ searchTerm   =e.target.value; applyFilters(); });
 document.getElementById('f-pagesize').addEventListener('change',e=>{
   pageSize=parseInt(e.target.value);
   if(grid) grid.updateConfig({pagination:{limit:pageSize}}).forceRender();
 });
 document.getElementById('f-clear').addEventListener('click',()=>{
-  activeStatus='all'; activeSuite=''; activeCat=''; activeBrowser=''; activeEnv=''; searchTerm='';
+  activeStatus='all'; activeSuite=''; activeCat=''; activeBrowser=''; activeEnv=''; activeRun=''; searchTerm='';
   document.getElementById('f-search').value='';
   document.getElementById('f-suite').value='';
   document.getElementById('f-cat').value='';
   document.getElementById('f-browser').value='';
   document.getElementById('f-env').value='';
+  document.getElementById('f-run').value='';
+  document.querySelectorAll('.run-card').forEach(c=>c.classList.remove('active'));
   document.querySelectorAll('.st-btn').forEach(b=>b.classList.toggle('active',b.dataset.st==='all'));
   applyFilters();
 });
@@ -735,7 +822,7 @@ document.getElementById('btnCsv').addEventListener('click',()=>exportCsv());
 document.getElementById('btnJson').addEventListener('click',()=>exportJson());
 
 function exportCsv(){
-  const cols=['testName','testSuite','category','status','durationMs','browser','environment','machineName','tags','exceptionType','exceptionMsg'];
+  const cols=['runName','testName','testSuite','category','status','durationMs','browser','environment','machineName','tags','exceptionType','exceptionMsg'];
   const header = cols.join(',');
   const lines  = FILTERED.map(r=>cols.map(c=>csvCell(r[c])).join(','));
   download('test-report.csv', header+'\n'+lines.join('\n'), 'text/csv');
