@@ -134,6 +134,21 @@ namespace SimpleSeleniumSupport.Reporting
         /// </summary>
         public string? RunName { get; set; }
 
+        // ── Retry & analytics ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Number of retry attempts before this final result. 0 = first attempt succeeded or failed.
+        /// Populate this from your retry policy / test framework hook.
+        /// </summary>
+        public int RetryCount { get; set; }
+
+        /// <summary>
+        /// Flakiness score in [0.0, 1.0] computed by <c>FlakinessAnalyzer</c> after cross-run analysis.
+        /// 0.0 = always consistent; 1.0 = alternates pass/fail every run.
+        /// <see langword="null"/> until analytics have been run against historical data.
+        /// </summary>
+        public double? FlakinessScore { get; set; }
+
         // ── Custom / extensible ───────────────────────────────────────────────
 
         /// <summary>

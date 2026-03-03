@@ -1,5 +1,7 @@
-﻿using OpenQA.Selenium;
+﻿using Microsoft.Extensions.Logging;
+using OpenQA.Selenium;
 using SimpleSeleniumSupport.Diagnostics;
+using SimpleSeleniumSupport.Logging;
 using SimpleSeleniumSupport.Network;
 using System.Text;
 
@@ -7,6 +9,8 @@ namespace SimpleSeleniumSupport.AI
 {
     public static class AISuggestFixExtensions
     {
+        private static readonly ILogger _log = LibraryLogger.ForCategory("SimpleSeleniumSupport.AI.AISuggestFix");
+
         /// <summary>
         /// Analyze failure and ask the AI for suggested fix. Also capture diagnostics to disk.
         /// </summary>
@@ -30,7 +34,7 @@ namespace SimpleSeleniumSupport.AI
             }
             catch (Exception diagEx)
             {
-                Console.WriteLine($"[AISuggestFix] Failed to save diagnostics: {diagEx.Message}");
+                _log.LogWarning(diagEx, "[AISuggestFix] Failed to save diagnostics: {Message}", diagEx.Message);
             }
 
             // 2) Build a summary prompt for the AI
@@ -93,11 +97,13 @@ namespace SimpleSeleniumSupport.AI
             catch { /* ignore */ }
             var prompt = sb.ToString();
 
-            // 3) Call OllamaClient safely
+            // 3) Call AI provider safely
             string aiResponse;
             try
             {
-                aiResponse = OllamaClient.Generate(prompt, ollamaModel);
+                var opts   = new AIRequestOptions { Model = ollamaModel };
+                var result = AIProviderRegistry.Current.Generate(prompt, opts);
+                aiResponse = result.Success ? result.Text : $"AI call failed: {result.ErrorMessage}";
             }
             catch (Exception apiEx)
             {
@@ -137,6 +143,88 @@ namespace SimpleSeleniumSupport.AI
             catch { /* swallow */ }
 
             // 5) Return AI response
+            return aiResponse;
+        }
+
+        /// <summary>
+        /// Async version of <see cref="AnalyzeAndSuggestFix"/>.
+        /// Routes the AI call through <see cref="AIProviderRegistry.Current"/> without blocking.
+        /// </summary>
+        /// <param name="driver">Current IWebDriver</param>
+        /// <param name="ex">Exception thrown by the test</param>
+        /// <param name="testName">Optional test name used to name artifacts</param>
+        /// <param name="capture">Optional Capture instance for network traces</param>
+        /// <param name="consoleLogs">Optional console logs collected during the test</param>
+        /// <param name="aiModel">Model name override (null = use provider default)</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        /// <returns>AI suggestion text</returns>
+        public static async Task<string> AnalyzeAndSuggestFixAsync(
+            this IWebDriver driver,
+            Exception ex,
+            string? testName = null,
+            Capture? capture = null,
+            IEnumerable<ConsoleLogEntry>? consoleLogs = null,
+            string? aiModel = null,
+            CancellationToken cancellationToken = default)
+        {
+            testName ??= "UnnamedTest";
+
+            string diagFolder = "[not-saved]";
+            try
+            {
+                diagFolder = FailureDiagnostics.SaveDiagnostics(driver, capture, consoleLogs, baseFolder: "Diagnostics");
+            }
+            catch (Exception diagEx)
+            {
+                _log.LogWarning(diagEx, "[AISuggestFix] Failed to save diagnostics: {Message}", diagEx.Message);
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("You are an expert test automation engineer.");
+            sb.AppendLine($"Test name: {testName}");
+            sb.AppendLine($"Exception: {ex.GetType().FullName}: {ex.Message}");
+            sb.AppendLine();
+            sb.AppendLine($"- Diagnostics folder: {diagFolder}");
+            sb.AppendLine($"- Current URL: {SafeGetUrl(driver)}");
+            sb.AppendLine($"- Page title: {SafeGetTitle(driver)}");
+            sb.AppendLine();
+            sb.AppendLine("1) Suggest 2 short possible explanations for why this failure occurred.");
+            sb.AppendLine("2) Suggest 2 concrete remediations (code-level suggestions) for Selenium C# tests.");
+            sb.AppendLine("3) If possible, return a robust XPath on its own line labelled XPATH_CANDIDATE:");
+
+            try
+            {
+                if (AISuggestFixConfig.UseTrimmedDom)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("--- VISIBLE DOM SNIPPET (trimmed) ---");
+                    sb.AppendLine(DomTrimmer.TrimDom(driver, AISuggestFixConfig.TrimMaxNodes, AISuggestFixConfig.TrimMaxChars));
+                }
+            }
+            catch { sb.AppendLine("[dom-trim-failed]"); }
+
+            var opts   = new AIRequestOptions { Model = aiModel };
+            var result = await AIProviderRegistry.Current
+                .GenerateAsync(sb.ToString(), opts, cancellationToken)
+                .ConfigureAwait(false);
+
+            var aiResponse = result.Success ? result.Text : $"AI call failed: {result.ErrorMessage}";
+
+            // Validate XPath candidate
+            try
+            {
+                var candidate = ExtractXPathCandidate(aiResponse);
+                if (!string.IsNullOrWhiteSpace(candidate))
+                {
+                    var normalized = AIElementFinder.NormalizeXpath(candidate);
+                    var elems = driver.FindElements(By.XPath(normalized));
+                    aiResponse += Environment.NewLine + (elems.Count == 1
+                        ? $"(Validated selector matches 1 element: {normalized})"
+                        : $"(Validated selector matches {elems.Count} elements: {normalized})");
+                }
+            }
+            catch { /* swallow */ }
+
             return aiResponse;
         }
 

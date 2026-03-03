@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace SimpleSeleniumSupport
 {
     /// <summary>
@@ -98,5 +101,57 @@ namespace SimpleSeleniumSupport
         /// Seeds <see cref="Recording.VideoRecordingOptions.FrameRate"/>.
         /// </summary>
         public static int VideoRecordingFrameRate { get; set; } = 5;
+
+        // ─── Logging ──────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Wire a <see cref="ILoggerFactory"/> to receive structured log output from all
+        /// SimpleSeleniumSupport internals. By default <see cref="NullLoggerFactory"/> is used
+        /// (all log output suppressed). Set once at test-suite startup:
+        /// <code>
+        /// SimpleSeleniumSupportDefaults.LoggerFactory = LoggerFactory.Create(b =>
+        ///     b.AddConsole().SetMinimumLevel(LogLevel.Debug));
+        /// </code>
+        /// </summary>
+        public static ILoggerFactory LoggerFactory
+        {
+            get => _loggerFactory;
+            set
+            {
+                _loggerFactory = value ?? NullLoggerFactory.Instance;
+                Logging.LibraryLogger.Configure(_loggerFactory);
+            }
+        }
+        private static ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
+
+        // ─── Analytics ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// When <c>true</c>, each completed test run is appended to the history store
+        /// at <see cref="AnalyticsHistoryDirectory"/> so that the analytics dashboard
+        /// can compute flakiness scores and pass-rate trends over time.
+        /// </summary>
+        public static bool AnalyticsEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Directory where the <c>test-history.json</c> file is maintained.
+        /// Defaults to <c>"TestReports/history"</c>.
+        /// </summary>
+        public static string AnalyticsHistoryDirectory { get; set; } = "TestReports/history";
+
+        /// <summary>
+        /// Maximum number of historical runs kept in <c>test-history.json</c>.
+        /// Older runs are pruned automatically when this limit is exceeded.
+        /// </summary>
+        public static int AnalyticsMaxRunsKept { get; set; } = 50;
+
+        // ─── Screenshot annotation ────────────────────────────────────────────────
+
+        /// <summary>
+        /// When <c>true</c>, failure screenshots saved by <c>FailureDiagnostics</c> are
+        /// annotated with a red banner showing the failure message and a grey info bar
+        /// with the test name and timestamp. The un-annotated raw PNG is also preserved.
+        /// </summary>
+        public static bool AnnotateScreenshotsOnFailure { get; set; } = true;
     }
 }

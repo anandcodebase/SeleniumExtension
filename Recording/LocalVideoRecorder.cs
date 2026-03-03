@@ -1,5 +1,7 @@
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using OpenQA.Selenium;
+using SimpleSeleniumSupport.Logging;
+using System.Diagnostics;
 
 namespace SimpleSeleniumSupport.Recording
 {
@@ -17,6 +19,8 @@ namespace SimpleSeleniumSupport.Recording
     /// </remarks>
     public sealed class LocalVideoRecorder : IVideoRecorder
     {
+        private static readonly ILogger _log = LibraryLogger.For<LocalVideoRecorder>();
+
         private readonly IWebDriver _driver;
         private readonly VideoRecordingOptions _options;
 
@@ -136,7 +140,7 @@ namespace SimpleSeleniumSupport.Recording
                     catch (Exception ex)
                     {
                         // Individual frame failures are non-fatal — log and continue.
-                        Console.WriteLine($"[LocalVideoRecorder] Frame capture failed: {ex.Message}");
+                        _log.LogWarning(ex, "[LocalVideoRecorder] Frame capture failed: {Message}", ex.Message);
                     }
 
                     var elapsed = (DateTime.UtcNow - frameStart).TotalMilliseconds;
@@ -182,7 +186,7 @@ namespace SimpleSeleniumSupport.Recording
                 var exited = await Task.Run(() => _ffmpeg.WaitForExit(15_000), ct).ConfigureAwait(false);
                 if (!exited)
                 {
-                    Console.WriteLine("[LocalVideoRecorder] FFmpeg did not exit within 15 s — killing process.");
+                    _log.LogWarning("[LocalVideoRecorder] FFmpeg did not exit within 15 s — killing process.");
                     try { _ffmpeg.Kill(); } catch { }
                 }
             }
@@ -195,7 +199,7 @@ namespace SimpleSeleniumSupport.Recording
                     try { File.Delete(VideoPath); }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[LocalVideoRecorder] Could not delete recording: {ex.Message}");
+                        _log.LogWarning(ex, "[LocalVideoRecorder] Could not delete recording: {Message}", ex.Message);
                     }
                 }
 

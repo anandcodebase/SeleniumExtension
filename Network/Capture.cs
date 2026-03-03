@@ -1,6 +1,8 @@
-﻿using OpenQA.Selenium;
+﻿using Microsoft.Extensions.Logging;
+using OpenQA.Selenium;
 using OpenQA.Selenium.DevTools;
 using OpenQA.Selenium.Support.UI;
+using SimpleSeleniumSupport.Logging;
 using System.Collections.Concurrent;
 
 namespace SimpleSeleniumSupport.Network
@@ -10,6 +12,7 @@ namespace SimpleSeleniumSupport.Network
     /// </summary>
     public class Capture : IDisposable
     {
+        private static readonly ILogger _log = LibraryLogger.For<Capture>();
         private bool _disposed;
         /// <summary>
         /// The driver
@@ -56,7 +59,7 @@ namespace SimpleSeleniumSupport.Network
 
             if (_networkInterceptor != null)
             {
-                Console.WriteLine("Monitoring is already active.");
+                _log.LogDebug("Network monitoring is already active.");
                 return;
             }
 
@@ -65,7 +68,7 @@ namespace SimpleSeleniumSupport.Network
             _networkInterceptor.NetworkRequestSent += RequestSentHandler;
             _networkInterceptor.NetworkResponseReceived += ResponseReceivedHandler;
             _networkInterceptor.StartMonitoring().GetAwaiter().GetResult();
-            Console.WriteLine("Network monitoring started.");
+            _log.LogInformation("Network monitoring started.");
         }
 
         /// <summary>
@@ -75,7 +78,7 @@ namespace SimpleSeleniumSupport.Network
         {
             if (_networkInterceptor == null)
             {
-                Console.WriteLine("Monitoring is not active.");
+                _log.LogDebug("Network monitoring is not active.");
                 return;
             }
 
@@ -83,7 +86,7 @@ namespace SimpleSeleniumSupport.Network
             _networkInterceptor.NetworkRequestSent -= RequestSentHandler;
             _networkInterceptor.NetworkResponseReceived -= ResponseReceivedHandler;
             _networkInterceptor = null;
-            Console.WriteLine("Network monitoring stopped.");
+            _log.LogInformation("Network monitoring stopped.");
         }
 
         /// <summary>
@@ -225,7 +228,7 @@ namespace SimpleSeleniumSupport.Network
         {
             _requestSentMap.Clear();
             _responseReceivedMap.Clear();
-            Console.WriteLine("Cleared all captured network data.");
+            _log.LogDebug("Cleared all captured network data.");
         }
 
         /// <summary>

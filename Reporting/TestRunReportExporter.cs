@@ -1,3 +1,5 @@
+using SimpleSeleniumSupport.Analytics;
+using SimpleSeleniumSupport.CiExport;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,28 +12,33 @@ namespace SimpleSeleniumSupport.Reporting
     /// <summary>
     /// Exports a collection of <see cref="TestResult"/> objects to a production-ready
     /// interactive HTML report (GridJS + Bootstrap 5).
-    /// <para>
-    /// Output: a folder containing <c>index.html</c>, <c>data.json</c>, and <c>manifest.json</c>.
-    /// All data is loaded client-side from data.json, so the report scales to thousands of tests
-    /// without server-side paging.
-    /// </para>
-    /// <para>
-    /// Features: summary stats bar, status/suite/category/browser filter bar, paginated sortable grid,
-    /// per-row detail modal with tabs (Overview / Failure / AI Analysis / Screenshot / Screencast /
-    /// Network / Custom Properties), video player for local/URL screencasts, stack-trace copy button,
-    /// CSV + JSON export, keyboard shortcuts.
-    /// </para>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <see cref="Export"/> — folder output: <c>index.html</c> + <c>data.json</c> + <c>manifest.json</c>.
+    ///     Scales to tens of thousands of tests; data loaded client-side.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="ExportSingleFile"/> — one self-contained <c>.html</c> file with all data embedded inline.
+    ///     No external dependencies — open directly or attach to CI artefacts.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <see cref="ExportToExcel"/> — <c>.xlsx</c> workbook with one row per test result.
+    ///   </description></item>
+    /// </list>
     /// </summary>
     public static class TestRunReportExporter
     {
         // ── Public API ─────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Exports <paramref name="results"/> to a self-contained HTML report folder.
+        /// Exports <paramref name="results"/> to a report folder containing
+        /// <c>index.html</c>, <c>data.json</c>, and <c>manifest.json</c>.
+        /// The HTML loads data client-side, so it scales well for large result sets.
+        /// Open <c>index.html</c> in a browser (must be served or opened from disk with local-file access).
         /// </summary>
         /// <param name="results">Test results to include.</param>
-        /// <param name="outFolderRoot">Parent directory under which the report folder is created.</param>
-        /// <param name="reportName">Display name used in the report title and folder name.</param>
+        /// <param name="outFolderRoot">Parent directory under which the timestamped report folder is created.</param>
+        /// <param name="reportName">Display name shown in the report title and used to name the folder.</param>
         /// <returns>Absolute path of the generated report folder.</returns>
         public static string Export(
             IEnumerable<TestResult> results,
@@ -43,29 +50,200 @@ namespace SimpleSeleniumSupport.Reporting
 
             Directory.CreateDirectory(outFolderRoot);
 
-            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var safeName     = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp    = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var reportFolder = GetUniqueFolderPath(outFolderRoot, $"{safeName}-{timestamp}");
             Directory.CreateDirectory(reportFolder);
 
-            var list = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            var list        = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            var jsonOptions = CreateJsonOptions();
+            var rows        = list.Select((r, idx) => BuildRow(r, idx)).ToList();
+            var (runGroups, runsJson) = ComputeRunData(list, jsonOptions);
 
-            var jsonOptions = new JsonSerializerOptions
-            {
-                WriteIndented     = false,
-                Encoder           = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-
-            // ── data.json (all rows — client does filtering/paging) ────────────
-            var rows = list.Select((r, idx) => BuildRow(r, idx)).ToList();
+            // ── data.json ─────────────────────────────────────────────────────
             File.WriteAllText(
                 Path.Combine(reportFolder, "data.json"),
                 JsonSerializer.Serialize(rows, jsonOptions),
                 Encoding.UTF8);
 
-            // ── Per-run breakdown (populated when any result has RunName) ─────
-            var runGroups = list
+            // ── manifest.json ─────────────────────────────────────────────────
+            File.WriteAllText(
+                Path.Combine(reportFolder, "manifest.json"),
+                JsonSerializer.Serialize(BuildManifest(list, reportName, safeName, runGroups), jsonOptions),
+                Encoding.UTF8);
+
+            // ── index.html (loads data.json via fetch) ────────────────────────
+            File.WriteAllText(
+                Path.Combine(reportFolder, "index.html"),
+                BuildHtml(FetchInitScript, runsJson, reportName, safeName),
+                Encoding.UTF8);
+
+            // ── Analytics history (opt-in) ────────────────────────────────────
+            if (SimpleSeleniumSupportDefaults.AnalyticsEnabled)
+                HistoryStore.Append(list, reportName ?? "Test Run");
+
+            return Path.GetFullPath(reportFolder);
+        }
+
+        /// <summary>
+        /// Exports <paramref name="results"/> to a <b>single self-contained <c>.html</c> file</b>
+        /// with <c>data.json</c> and <c>manifest.json</c> content embedded inline as JavaScript.
+        /// <para>
+        /// The file has no external data dependencies and can be opened directly from disk,
+        /// e-mailed, or attached to CI artefacts without any additional files.
+        /// For very large result sets (&gt;5 000 rows) the file size may exceed several MB;
+        /// prefer <see cref="Export"/> in those cases.
+        /// </para>
+        /// </summary>
+        /// <param name="results">Test results to include.</param>
+        /// <param name="outFolderRoot">Directory where the <c>.html</c> file is written.</param>
+        /// <param name="reportName">Display name shown in the report title and used to name the file.</param>
+        /// <returns>Absolute path of the generated <c>.html</c> file.</returns>
+        public static string ExportSingleFile(
+            IEnumerable<TestResult> results,
+            string outFolderRoot,
+            string? reportName = null)
+        {
+            if (string.IsNullOrWhiteSpace(outFolderRoot))
+                throw new ArgumentNullException(nameof(outFolderRoot));
+
+            Directory.CreateDirectory(outFolderRoot);
+
+            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.html");
+
+            var list        = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            var jsonOptions = CreateJsonOptions();
+            var rows        = list.Select((r, idx) => BuildRow(r, idx)).ToList();
+            var (_, runsJson) = ComputeRunData(list, jsonOptions);
+
+            // Embed rows as an inline JS assignment.
+            // Replace </script occurrences to prevent premature tag closure.
+            var dataJson = JsonSerializer.Serialize(rows, jsonOptions)
+                .Replace("</script", @"<\/script", StringComparison.OrdinalIgnoreCase);
+
+            var inlineInit =
+                $"ALL_ROWS = {dataJson};\n" +
+                "document.getElementById('load-msg').style.display = 'none';\n" +
+                "populateDropdowns();\n" +
+                "applyFilters();\n" +
+                "renderStats(ALL_ROWS);";
+
+            File.WriteAllText(
+                outPath,
+                BuildHtml(inlineInit, runsJson, reportName, safeName),
+                Encoding.UTF8);
+
+            return Path.GetFullPath(outPath);
+        }
+
+        /// <summary>
+        /// Exports <paramref name="results"/> to an Excel <c>.xlsx</c> workbook — one row per test result.
+        /// Columns: Run · Test Name · Suite · Category · Tags · Status · Duration · Start Time ·
+        /// Browser · Environment · Machine · Exception · Stack Trace · AI Analysis · Custom Properties · artifacts.
+        /// </summary>
+        /// <param name="results">Test results to include.</param>
+        /// <param name="outFolderRoot">Directory where the <c>.xlsx</c> file is written.</param>
+        /// <param name="reportName">Used to name the output file.</param>
+        /// <returns>Absolute path of the generated <c>.xlsx</c> file.</returns>
+        public static string ExportToExcel(
+            IEnumerable<TestResult> results,
+            string outFolderRoot,
+            string? reportName = null)
+        {
+            if (string.IsNullOrWhiteSpace(outFolderRoot))
+                throw new ArgumentNullException(nameof(outFolderRoot));
+
+            Directory.CreateDirectory(outFolderRoot);
+
+            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.xlsx");
+
+            ExcelExporter.ExportTestResultsToExcel(results, outPath);
+
+            return Path.GetFullPath(outPath);
+        }
+
+        // ── CI/CD XML export overloads ────────────────────────────────────────
+
+        /// <summary>
+        /// Exports <paramref name="results"/> to a JUnit 4 XML file (compatible with Jenkins,
+        /// GitLab CI, GitHub Actions test reports).
+        /// </summary>
+        /// <param name="results">Test results to include.</param>
+        /// <param name="outFolderRoot">Directory where the <c>.xml</c> file is written.</param>
+        /// <param name="reportName">Used to name the output file and as the suite name attribute.</param>
+        /// <returns>Absolute path of the generated XML file.</returns>
+        public static string ExportToJUnit(
+            IEnumerable<TestResult> results,
+            string outFolderRoot,
+            string? reportName = null)
+        {
+            Directory.CreateDirectory(outFolderRoot);
+            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}-junit.xml");
+            JUnitXmlExporter.Export(results, outPath, reportName ?? "TestRun");
+            return Path.GetFullPath(outPath);
+        }
+
+        /// <summary>
+        /// Exports <paramref name="results"/> to an NUnit 3 XML file (compatible with
+        /// Azure DevOps and TeamCity).
+        /// </summary>
+        /// <param name="results">Test results to include.</param>
+        /// <param name="outFolderRoot">Directory where the <c>.xml</c> file is written.</param>
+        /// <param name="reportName">Used to name the output file.</param>
+        /// <returns>Absolute path of the generated XML file.</returns>
+        public static string ExportToNUnitXml(
+            IEnumerable<TestResult> results,
+            string outFolderRoot,
+            string? reportName = null)
+        {
+            Directory.CreateDirectory(outFolderRoot);
+            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}-nunit.xml");
+            NUnitXmlExporter.Export(results, outPath, reportName ?? "Test Run");
+            return Path.GetFullPath(outPath);
+        }
+
+        /// <summary>
+        /// Exports <paramref name="results"/> to a Visual Studio TRX file (compatible with
+        /// Azure DevOps test result publishing and <c>dotnet test</c>).
+        /// </summary>
+        /// <param name="results">Test results to include.</param>
+        /// <param name="outFolderRoot">Directory where the <c>.trx</c> file is written.</param>
+        /// <param name="reportName">Used to name the output file and the run name attribute.</param>
+        /// <returns>Absolute path of the generated TRX file.</returns>
+        public static string ExportToTrx(
+            IEnumerable<TestResult> results,
+            string outFolderRoot,
+            string? reportName = null)
+        {
+            Directory.CreateDirectory(outFolderRoot);
+            var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.trx");
+            TrxExporter.Export(results, outPath, reportName ?? "Test Run");
+            return Path.GetFullPath(outPath);
+        }
+
+        // ── Shared private helpers ─────────────────────────────────────────────
+
+        private static JsonSerializerOptions CreateJsonOptions() => new JsonSerializerOptions
+        {
+            WriteIndented        = false,
+            Encoder              = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        private static (object runGroups, string runsJson) ComputeRunData(
+            List<TestResult> list, JsonSerializerOptions opts)
+        {
+            var groups = list
                 .Where(r => !string.IsNullOrEmpty(r.RunName))
                 .GroupBy(r => r.RunName!)
                 .Select(g => new {
@@ -76,35 +254,44 @@ namespace SimpleSeleniumSupport.Reporting
                     skip    = g.Count(r => r.Status == TestStatus.Skip),
                     error   = g.Count(r => r.Status == TestStatus.Error)
                 })
-                .ToList();
-            var runsJson = JsonSerializer.Serialize(runGroups, jsonOptions);
-
-            // ── manifest.json ──────────────────────────────────────────────────
-            var manifest = new
-            {
-                reportName   = reportName ?? safeName,
-                totalTests   = list.Count,
-                passed       = list.Count(x => x.Status == TestStatus.Pass),
-                failed       = list.Count(x => x.Status == TestStatus.Fail),
-                skipped      = list.Count(x => x.Status == TestStatus.Skip),
-                errors       = list.Count(x => x.Status == TestStatus.Error),
-                generatedUtc = DateTime.UtcNow.ToString("o"),
-                runs         = runGroups
-            };
-            File.WriteAllText(
-                Path.Combine(reportFolder, "manifest.json"),
-                JsonSerializer.Serialize(manifest, jsonOptions),
-                Encoding.UTF8);
-
-            // ── index.html ────────────────────────────────────────────────────
-            var html = GetTemplate()
-                .Replace("[[REPORT_NAME]]", HtmlEnc(reportName ?? safeName))
-                .Replace("[[GEN_TIME]]",    DateTime.UtcNow.ToString("u"))
-                .Replace("[[RUNS_JSON]]",   runsJson);
-            File.WriteAllText(Path.Combine(reportFolder, "index.html"), html, Encoding.UTF8);
-
-            return Path.GetFullPath(reportFolder);
+                .ToList<object>();
+            return (groups, JsonSerializer.Serialize(groups, opts));
         }
+
+        private static object BuildManifest(
+            List<TestResult> list, string? reportName, string safeName, object runGroups) => new
+        {
+            reportName   = reportName ?? safeName,
+            totalTests   = list.Count,
+            passed       = list.Count(x => x.Status == TestStatus.Pass),
+            failed       = list.Count(x => x.Status == TestStatus.Fail),
+            skipped      = list.Count(x => x.Status == TestStatus.Skip),
+            errors       = list.Count(x => x.Status == TestStatus.Error),
+            generatedUtc = DateTime.UtcNow.ToString("o"),
+            runs         = runGroups
+        };
+
+        private static string BuildHtml(
+            string dataInitScript, string runsJson, string? reportName, string safeName)
+            => GetTemplate()
+                .Replace("[[REPORT_NAME]]",      HtmlEnc(reportName ?? safeName))
+                .Replace("[[GEN_TIME]]",          DateTime.UtcNow.ToString("u"))
+                .Replace("[[RUNS_JSON]]",         runsJson)
+                .Replace("[[DATA_INIT_SCRIPT]]",  dataInitScript);
+
+        private const string FetchInitScript =
+            "fetch('data.json')\n" +
+            "  .then(r => r.json())\n" +
+            "  .then(rows => {\n" +
+            "    ALL_ROWS = rows;\n" +
+            "    document.getElementById('load-msg').style.display = 'none';\n" +
+            "    populateDropdowns();\n" +
+            "    applyFilters();\n" +
+            "    renderStats(ALL_ROWS);\n" +
+            "  })\n" +
+            "  .catch(e => {\n" +
+            "    document.getElementById('load-msg').textContent = 'Error loading data.json: ' + e.message;\n" +
+            "  });";
 
         // ── Row serialisation ──────────────────────────────────────────────────
 
@@ -440,18 +627,7 @@ const RUNS_DATA  = [[RUNS_JSON]];          // per-run summary; empty = no run gr
 const HAS_RUNS   = RUNS_DATA.length >= 1;  // true = at least one RunName present
 
 // ── Load ───────────────────────────────────────────────────────────────
-fetch('data.json')
-  .then(r => r.json())
-  .then(rows => {
-    ALL_ROWS = rows;
-    document.getElementById('load-msg').style.display = 'none';
-    populateDropdowns();
-    applyFilters();
-    renderStats(ALL_ROWS);
-  })
-  .catch(e => {
-    document.getElementById('load-msg').textContent = 'Error loading data.json: ' + e.message;
-  });
+[[DATA_INIT_SCRIPT]]
 
 // ── Dropdowns ──────────────────────────────────────────────────────────
 function populateDropdowns(){

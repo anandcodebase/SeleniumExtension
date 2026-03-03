@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using NPOI.SS.UserModel;
 using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
@@ -11,6 +12,173 @@ namespace SimpleSeleniumSupport.Reporting
 {
     public static class ExcelExporter
     {
+        // ── TestResult export ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Exports a collection of <see cref="TestResult"/> objects to an Excel <c>.xlsx</c> workbook.
+        /// One row per test result. Columns cover all identity, outcome, environment, failure,
+        /// artifact, AI-analysis, run-name, and custom-property fields.
+        /// Status cells are colour-coded (green / red / orange / grey).
+        /// </summary>
+        /// <param name="results">Test results to export.</param>
+        /// <param name="path">Output <c>.xlsx</c> file path. Directory is created if needed.</param>
+        public static void ExportTestResultsToExcel(IEnumerable<TestResult> results, string path)
+        {
+            var list = results?.ToList() ?? new List<TestResult>();
+
+            IWorkbook wb    = new XSSFWorkbook();
+            var sheet       = wb.CreateSheet("Test Results");
+            var dataFormat  = wb.CreateDataFormat();
+
+            // ── Cell styles ───────────────────────────────────────────────────
+            var dateStyle = wb.CreateCellStyle();
+            dateStyle.DataFormat = dataFormat.GetFormat("yyyy-mm-dd hh:mm:ss");
+
+            var headerStyle = wb.CreateCellStyle();
+            headerStyle.FillForegroundColor = NPOI.HSSF.Util.HSSFColor.Grey25Percent.Index;
+            headerStyle.FillPattern         = FillPattern.SolidForeground;
+            var headerFont = wb.CreateFont();
+            headerFont.IsBold = true;
+            headerStyle.SetFont(headerFont);
+
+            var wrapStyle = wb.CreateCellStyle();
+            wrapStyle.WrapText = true;
+
+            // Status colour styles (IndexedColors — broadest NPOI compatibility)
+            var passStyle  = MakeColorStyle(wb, IndexedColors.LightGreen.Index);
+            var failStyle  = MakeColorStyle(wb, IndexedColors.Rose.Index);
+            var errorStyle = MakeColorStyle(wb, IndexedColors.LightOrange.Index);
+            var skipStyle  = MakeColorStyle(wb, IndexedColors.Grey25Percent.Index);
+
+            // ── Header row ────────────────────────────────────────────────────
+            string[] headers =
+            [
+                "#", "Run", "Test Name", "Suite", "Full Name", "Category", "Tags",
+                "Status", "Duration (ms)", "Start Time (UTC)",
+                "Browser", "Environment", "Machine",
+                "Exception Type", "Exception Message", "Stack Trace", "Assert Message", "Skip Reason",
+                "Screenshot", "Screencast", "Diagnostics Folder", "Network HAR", "Network Excel",
+                "AI Analysis", "Custom Properties"
+            ];
+
+            var hdr = sheet.CreateRow(0);
+            for (int c = 0; c < headers.Length; c++)
+            {
+                var cell = hdr.CreateCell(c);
+                cell.SetCellValue(headers[c]);
+                cell.CellStyle = headerStyle;
+            }
+
+            // ── Data rows ─────────────────────────────────────────────────────
+            var jsonOpts = new JsonSerializerOptions { WriteIndented = false };
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                var r   = list[i];
+                var row = sheet.CreateRow(i + 1);
+                int c   = 0;
+
+                row.CreateCell(c++).SetCellValue(i + 1);                             // #
+                Str(row, c++, r.RunName);                                            // Run
+                Str(row, c++, r.TestName);                                           // Test Name
+                Str(row, c++, r.TestSuite);                                          // Suite
+                Str(row, c++, r.FullName);                                           // Full Name
+                Str(row, c++, r.Category);                                           // Category
+                Str(row, c++, r.Tags);                                               // Tags
+
+                // Status — colour coded
+                var statusCell = row.CreateCell(c++);
+                statusCell.SetCellValue(r.Status.ToString());
+                statusCell.CellStyle = r.Status switch
+                {
+                    TestStatus.Pass  => passStyle,
+                    TestStatus.Fail  => failStyle,
+                    TestStatus.Error => errorStyle,
+                    TestStatus.Skip  => skipStyle,
+                    _                => skipStyle
+                };
+
+                row.CreateCell(c++).SetCellValue(r.DurationMs);                      // Duration (ms)
+
+                // Start Time as real Excel datetime
+                var dtCell = row.CreateCell(c++);
+                dtCell.SetCellValue(r.StartTime.ToUniversalTime());
+                dtCell.CellStyle = dateStyle;
+
+                Str(row, c++, r.Browser);                                            // Browser
+                Str(row, c++, r.Environment);                                        // Environment
+                Str(row, c++, r.MachineName);                                        // Machine
+                Str(row, c++, r.ExceptionType);                                      // Exception Type
+                WrapStr(row, c++, r.ExceptionMessage, wrapStyle);                    // Exception Message
+                WrapStr(row, c++, r.StackTrace,       wrapStyle);                    // Stack Trace
+                WrapStr(row, c++, r.AssertMessage,    wrapStyle);                    // Assert Message
+                Str(row, c++, r.SkipReason);                                         // Skip Reason
+                Str(row, c++, r.ScreenshotPath);                                     // Screenshot
+                Str(row, c++, r.ScreencastPath);                                     // Screencast
+                Str(row, c++, r.DiagnosticsFolder);                                  // Diagnostics
+                Str(row, c++, r.NetworkHarPath);                                     // HAR
+                Str(row, c++, r.NetworkExcelPath);                                   // Network Excel
+                WrapStr(row, c++, r.AiAnalysis, wrapStyle);                          // AI Analysis
+
+                // Custom Properties — serialised as "key=value" pairs, one per line
+                var cp = r.CustomProperties?.Count > 0
+                    ? string.Join("\n", r.CustomProperties.Select(kv => $"{kv.Key}={kv.Value}"))
+                    : "";
+                WrapStr(row, c++, cp, wrapStyle);                                    // Custom Properties
+            }
+
+            // ── AutoFilter + freeze header ────────────────────────────────────
+            int lastCol = headers.Length - 1;
+            try
+            {
+                sheet.SetAutoFilter(new CellRangeAddress(0, list.Count, 0, lastCol));
+                sheet.CreateFreezePane(0, 1);
+            }
+            catch { /* non-fatal */ }
+
+            // ── Column widths ─────────────────────────────────────────────────
+            // Auto-size narrow columns; cap wide text columns to avoid extreme widths.
+            int[] autoSizeCols  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21];
+            int[] wideTextCols  = [13, 14, 15, 16, 22, 23, 24];   // cap at 60 chars wide
+            foreach (var col in autoSizeCols) { try { sheet.AutoSizeColumn(col); } catch { } }
+            foreach (var col in wideTextCols) { try { sheet.SetColumnWidth(col, 60 * 256); } catch { } }
+
+            // ── Write file ────────────────────────────────────────────────────
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write);
+            wb.Write(fs);
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+
+        private static ICellStyle MakeColorStyle(IWorkbook wb, short indexedColor)
+        {
+            var style = wb.CreateCellStyle();
+            style.FillForegroundColor = indexedColor;
+            style.FillPattern         = FillPattern.SolidForeground;
+            return style;
+        }
+
+        private static void Str(IRow row, int col, string? value)
+        {
+            row.CreateCell(col).SetCellValue(Trim(value));
+        }
+
+        private static void WrapStr(IRow row, int col, string? value, ICellStyle style)
+        {
+            var cell = row.CreateCell(col);
+            cell.SetCellValue(Trim(value));
+            cell.CellStyle = style;
+        }
+
+        private static string Trim(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            return value.Length > 32767 ? value.Substring(0, 32767) : value;
+        }
+
+
         // Excel's maximum number of characters in a cell
         // Official limit: 32,767
         private const int DefaultMaxCellLength = 32767;

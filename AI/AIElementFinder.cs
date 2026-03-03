@@ -1,5 +1,7 @@
-﻿using OpenQA.Selenium;
+﻿using Microsoft.Extensions.Logging;
+using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
+using SimpleSeleniumSupport.Logging;
 using System.Collections.Concurrent;
 
 
@@ -10,6 +12,8 @@ namespace SimpleSeleniumSupport.AI
     /// </summary>
     public static class AIElementFinder
     {
+        private static readonly ILogger _log = LibraryLogger.ForCategory("SimpleSeleniumSupport.AI.AIElementFinder");
+
         // Simple in-memory cache: key = pageUrl + description -> xpath
         /// <summary>
         /// The selector cache
@@ -94,11 +98,12 @@ namespace SimpleSeleniumSupport.AI
             {
                 try
                 {
-                    Console.WriteLine($"🤖 AI Find (attempt {attempt + 1}) for '{description}' using model '{ollamaModel}'");
+                    _log.LogDebug("AI Find (attempt {Attempt}/{Total}) for '{Description}' using model '{Model}'",
+                        attempt + 1, retries + 1, description, ollamaModel);
                     string prompt = BuildPromptForSelector(driver, description);
 
-                    string xpath = OllamaClient.Generate(prompt, ollamaModel);
-                    xpath = NormalizeXpath(xpath);
+                    var aiResult = AIProviderRegistry.Current.Generate(prompt, new AIRequestOptions { Model = ollamaModel });
+                    string xpath = NormalizeXpath(aiResult.Success ? aiResult.Text : throw new InvalidOperationException(aiResult.ErrorMessage ?? "AI provider error"));
 
                     ValidateXpathOrThrow(xpath, description);
 
@@ -107,13 +112,13 @@ namespace SimpleSeleniumSupport.AI
                     if (UseCache)
                         _selectorCache[key] = xpath;
 
-                    Console.WriteLine($" AI generated XPath: {xpath}");
+                    _log.LogInformation("AI generated XPath for '{Description}': {XPath}", description, xpath);
                     return element;
                 }
                 catch (Exception ex)
                 {
                     lastException = ex;
-                    Console.WriteLine($"AI selector attempt failed: {ex.Message}");
+                    _log.LogWarning(ex, "AI selector attempt {Attempt} failed for '{Description}'", attempt + 1, description);
                     Thread.Sleep(DefaultRetryDelayMs);
                 }
             }
@@ -127,7 +132,7 @@ namespace SimpleSeleniumSupport.AI
             catch (Exception ex)
             {
                 // swallow - will throw below
-                Console.WriteLine($"Fallback heuristic failed: {ex.Message}");
+                _log.LogWarning(ex, "Fallback heuristic failed for '{Description}'", description);
             }
 
             throw new NoSuchElementException($"Failed to find element for description '{description}'. See inner for details.", lastException);
@@ -204,22 +209,25 @@ namespace SimpleSeleniumSupport.AI
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    Console.WriteLine($"🤖 AI Find (attempt {attempt + 1}) for '{description}' using model '{ollamaModel}'");
+                    _log.LogDebug("AI Find async (attempt {Attempt}/{Total}) for '{Description}' using model '{Model}'",
+                        attempt + 1, retries + 1, description, ollamaModel);
                     string prompt = BuildPromptForSelector(driver, description);
-                    string xpath = await OllamaClient.GenerateAsync(prompt, ollamaModel, cancellationToken)
+                    var aiResult = await AIProviderRegistry.Current
+                        .GenerateAsync(prompt, new AIRequestOptions { Model = ollamaModel }, cancellationToken)
                         .ConfigureAwait(false);
+                    string xpath = aiResult.Success ? aiResult.Text : throw new InvalidOperationException(aiResult.ErrorMessage ?? "AI provider error");
                     xpath = NormalizeXpath(xpath);
                     ValidateXpathOrThrow(xpath, description);
 
                     var element = driver.FindElement(By.XPath(xpath));
                     if (UseCache) _selectorCache[key] = xpath;
-                    Console.WriteLine($" AI generated XPath: {xpath}");
+                    _log.LogInformation("AI generated XPath for '{Description}': {XPath}", description, xpath);
                     return element;
                 }
                 catch (Exception ex)
                 {
                     lastException = ex;
-                    Console.WriteLine($"AI selector attempt failed: {ex.Message}");
+                    _log.LogWarning(ex, "AI selector async attempt {Attempt} failed for '{Description}'", attempt + 1, description);
                     await Task.Delay(DefaultRetryDelayMs, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -230,7 +238,7 @@ namespace SimpleSeleniumSupport.AI
                 var fallback = HeuristicFind(driver, description);
                 if (fallback != null) return fallback;
             }
-            catch (Exception ex) { Console.WriteLine($"Fallback heuristic failed: {ex.Message}"); }
+            catch (Exception ex) { _log.LogWarning(ex, "Fallback heuristic failed for '{Description}'", description); }
 
             throw new NoSuchElementException(
                 $"Failed to find element for description '{description}'. See inner for details.",
@@ -290,8 +298,8 @@ namespace SimpleSeleniumSupport.AI
             ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             string prompt = BuildPromptForSelector(driver, description) + "\nNote: If multiple matching elements exist, return an XPath that selects all matching nodes.";
 
-            string xpath = OllamaClient.Generate(prompt, ollamaModel);
-            xpath = NormalizeXpath(xpath);
+            var aiResult = AIProviderRegistry.Current.Generate(prompt, new AIRequestOptions { Model = ollamaModel });
+            string xpath = NormalizeXpath(aiResult.Success ? aiResult.Text : "");
 
             try
             {
@@ -299,7 +307,7 @@ namespace SimpleSeleniumSupport.AI
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to run XPath for FindElementsByAI: {ex.Message}");
+                _log.LogWarning(ex, "Failed to run XPath for FindElementsByAI: {Message}", ex.Message);
                 return Array.Empty<IWebElement>();
             }
         }
