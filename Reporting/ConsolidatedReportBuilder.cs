@@ -69,7 +69,7 @@ namespace SimpleSeleniumSupport.Reporting
             string? reportName = null,
             bool recursive = true)
         {
-            var discovered = ScanReports(rootFolder, recursive);
+            var discovered = ScanReports(rootFolder, recursive, outputFolder);
             var allResults = discovered.SelectMany(d => d.Results).ToList();
             reportName ??= $"Consolidated Report ({discovered.Count} runs)";
             return TestRunReportExporter.Export(allResults, outputFolder, reportName);
@@ -95,7 +95,7 @@ namespace SimpleSeleniumSupport.Reporting
             string? reportName = null,
             bool recursive = true)
         {
-            var discovered = ScanReports(rootFolder, recursive);
+            var discovered = ScanReports(rootFolder, recursive, outputFolder);
             var allResults = discovered.SelectMany(d => d.Results).ToList();
             reportName ??= $"Consolidated Report ({discovered.Count} runs)";
             return TestRunReportExporter.ExportSingleFile(allResults, outputFolder, reportName);
@@ -113,20 +113,27 @@ namespace SimpleSeleniumSupport.Reporting
         public static IReadOnlyList<DiscoveredReport> Discover(
             string rootFolder,
             bool recursive = true)
-            => ScanReports(rootFolder, recursive);
+            => ScanReports(rootFolder, recursive, excludeFolder: null);
 
         // ── Scan ────────────────────────────────────────────────────────────────
 
-        private static IReadOnlyList<DiscoveredReport> ScanReports(string rootFolder, bool recursive)
+        private static IReadOnlyList<DiscoveredReport> ScanReports(
+            string rootFolder, bool recursive, string? excludeFolder)
         {
             var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-            var results = new List<DiscoveredReport>();
+            var results  = new List<DiscoveredReport>();
             var skipDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Exclude the output folder so the consolidator never picks up its own output.
+            if (!string.IsNullOrEmpty(excludeFolder))
+                skipDirs.Add(Path.GetFullPath(excludeFolder));
 
             // Step 1 — Folder-based reports: locate every data.json that has a sibling manifest.json
             foreach (var dataJsonPath in Directory.EnumerateFiles(rootFolder, "data.json", searchOption))
             {
-                var dir          = Path.GetDirectoryName(dataJsonPath)!;
+                var dir = Path.GetFullPath(Path.GetDirectoryName(dataJsonPath)!);
+                if (skipDirs.Contains(dir)) continue;
+
                 var manifestPath = Path.Combine(dir, "manifest.json");
                 if (!File.Exists(manifestPath)) continue;
 
@@ -142,7 +149,7 @@ namespace SimpleSeleniumSupport.Reporting
             //           folder that already yielded a folder-based report.
             foreach (var htmlPath in Directory.EnumerateFiles(rootFolder, "*.html", searchOption))
             {
-                var dir = Path.GetDirectoryName(htmlPath)!;
+                var dir = Path.GetFullPath(Path.GetDirectoryName(htmlPath)!);
                 if (skipDirs.Contains(dir)) continue;
                 if (string.Equals(Path.GetFileName(htmlPath), "index.html", StringComparison.OrdinalIgnoreCase))
                     continue;

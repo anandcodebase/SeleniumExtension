@@ -111,7 +111,7 @@ namespace SimpleSeleniumSupport.Reporting
 
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.html");
+            var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}", ".html");
 
             var list        = (results ?? Enumerable.Empty<TestResult>()).ToList();
             var jsonOptions = CreateJsonOptions();
@@ -159,7 +159,7 @@ namespace SimpleSeleniumSupport.Reporting
 
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.xlsx");
+            var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}", ".xlsx");
 
             ExcelExporter.ExportTestResultsToExcel(results, outPath);
 
@@ -184,7 +184,7 @@ namespace SimpleSeleniumSupport.Reporting
             Directory.CreateDirectory(outFolderRoot);
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}-junit.xml");
+            var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}-junit", ".xml");
             JUnitXmlExporter.Export(results, outPath, reportName ?? "TestRun");
             return Path.GetFullPath(outPath);
         }
@@ -205,7 +205,7 @@ namespace SimpleSeleniumSupport.Reporting
             Directory.CreateDirectory(outFolderRoot);
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}-nunit.xml");
+            var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}-nunit", ".xml");
             NUnitXmlExporter.Export(results, outPath, reportName ?? "Test Run");
             return Path.GetFullPath(outPath);
         }
@@ -226,7 +226,7 @@ namespace SimpleSeleniumSupport.Reporting
             Directory.CreateDirectory(outFolderRoot);
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var outPath   = Path.Combine(outFolderRoot, $"{safeName}-{timestamp}.trx");
+            var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}", ".trx");
             TrxExporter.Export(results, outPath, reportName ?? "Test Run");
             return Path.GetFullPath(outPath);
         }
@@ -346,6 +346,24 @@ namespace SimpleSeleniumSupport.Reporting
                 if (!Directory.Exists(alt)) return alt;
             }
             return Path.Combine(root, $"{baseName}-{Guid.NewGuid():N}");
+        }
+
+        // Guards same-second file-name collisions when parallel tests all export at once
+        private static readonly object _filePathLock = new();
+
+        private static string GetUniqueFilePath(string root, string baseName, string ext)
+        {
+            lock (_filePathLock)
+            {
+                string candidate = Path.Combine(root, $"{baseName}{ext}");
+                if (!File.Exists(candidate)) return candidate;
+                for (int i = 1; i < 1000; i++)
+                {
+                    var alt = Path.Combine(root, $"{baseName}-{i}{ext}");
+                    if (!File.Exists(alt)) return alt;
+                }
+                return Path.Combine(root, $"{baseName}-{Guid.NewGuid():N}{ext}");
+            }
         }
 
         // ── HTML template (raw string literal) ────────────────────────────────
