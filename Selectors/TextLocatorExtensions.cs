@@ -78,7 +78,7 @@ namespace SimpleSeleniumSupport.Selectors
                 {
                     // lower-case comparison via translate on the text node content
                     var lowerNeedle = text.ToLowerInvariant();
-                    xpath = $"//*[text()[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(lowerNeedle)}]]";
+                    xpath = $"//*[text()[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), {QuoteForXPath(lowerNeedle)})]]";
                 }
             }
 

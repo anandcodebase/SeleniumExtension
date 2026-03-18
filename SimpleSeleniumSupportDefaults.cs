@@ -49,6 +49,14 @@ namespace SimpleSeleniumSupport
         public static int AiRetries { get; set; } = 2;
 
         /// <summary>
+        /// When <c>true</c>, all AI prompt submissions automatically scrub sensitive data
+        /// (passwords, usernames, tokens, file system paths) before sending to the AI provider.
+        /// This is the process-wide opt-in default. Override per-fixture via
+        /// <see cref="AI.AISuggestFixConfig.SanitizeBeforeSend"/>.
+        /// </summary>
+        public static bool AiSanitizeByDefault { get; set; } = false;
+
+        /// <summary>
         /// HTTP timeout (milliseconds) for each Ollama API call.
         /// Seeds <see cref="AI.OllamaClient.TimeoutMs"/>.
         /// </summary>
@@ -66,6 +74,21 @@ namespace SimpleSeleniumSupport
         /// Seeds <see cref="AI.OllamaClient.ApiUrl"/>.
         /// </summary>
         public static string OllamaBaseUrl { get; set; } = "http://localhost:11434/api/generate";
+
+        // ─── OCR ─────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Path to the Tesseract tessdata directory containing <c>.traineddata</c> files.
+        /// Download language data from https://github.com/tesseract-ocr/tessdata.
+        /// Default: <c>"tessdata"</c> (relative to the working directory).
+        /// </summary>
+        public static string OcrTessdataPath { get; set; } = "tessdata";
+
+        /// <summary>
+        /// Default Tesseract language pack used when <see cref="OCR.OcrOptions.Language"/> is null.
+        /// Default: <c>"eng"</c>.
+        /// </summary>
+        public static string OcrLanguage { get; set; } = "eng";
 
         // ─── Visual regression ────────────────────────────────────────────────────
 

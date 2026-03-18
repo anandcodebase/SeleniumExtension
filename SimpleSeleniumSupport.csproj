@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SimpleSeleniumSupport</PackageId>
-    <Version>1.9.0</Version>
+    <Version>2.0.0</Version>
     <Authors>Open Source</Authors>
     <Description>
       A comprehensive Selenium WebDriver addon for advanced, AI-driven automation. Features include:
@@ -16,7 +16,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);1591;CA1416</NoWarn>
+    <NoWarn>$(NoWarn);1573;1591;CA1416</NoWarn>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="DotNetSeleniumExtras.WaitHelpers" Version="3.11.0" />
+    <PackageReference Include="Tesseract" Version="5.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="NPOI" Version="2.7.6" />
     <PackageReference Include="Selenium.Support" Version="4.41.0" />

@@ -74,5 +74,33 @@ namespace SimpleSeleniumSupport.Image
         /// and merges the AI reasoning into the result. Default false.
         /// </summary>
         public bool EnableAI { get; set; }
+
+        // ================= ALGORITHM =================
+
+        /// <summary>
+        /// Image comparison algorithm to use when calling <see cref="VisualDiffEngine"/>.
+        /// Default: <see cref="ComparisonAlgorithm.Ssim"/> (weighted SSIM + edge).
+        /// </summary>
+        public ComparisonAlgorithm Algorithm { get; set; } = ComparisonAlgorithm.Ssim;
+
+        // ================= BROWSER TAGGING =================
+
+        /// <summary>
+        /// When true, baselines are stored per-browser and per-viewport so that the same
+        /// test can maintain separate baselines for Chrome, Firefox, Safari, etc.
+        /// Baseline file naming becomes <c>{testId}_{browser}_{W}x{H}.png</c>.
+        /// Default false.
+        /// </summary>
+        public bool BrowserTagged { get; set; } = false;
+
+        // ================= MASK FILL =================
+
+        /// <summary>
+        /// Colour used to fill <see cref="IgnoreRegions"/> before comparison.
+        /// Both baseline and actual are painted with this colour so the masked area
+        /// contributes zero difference to the score.
+        /// Default: <see cref="System.Drawing.Color.Gray"/>.
+        /// </summary>
+        public System.Drawing.Color MaskFillColor { get; set; } = System.Drawing.Color.Gray;
     }
 }

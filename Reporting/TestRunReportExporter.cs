@@ -43,7 +43,8 @@ namespace SimpleSeleniumSupport.Reporting
         public static string Export(
             IEnumerable<TestResult> results,
             string outFolderRoot,
-            string? reportName = null)
+            string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
@@ -55,7 +56,9 @@ namespace SimpleSeleniumSupport.Reporting
             var reportFolder = GetUniqueFolderPath(outFolderRoot, $"{safeName}-{timestamp}");
             Directory.CreateDirectory(reportFolder);
 
-            var list        = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            var list = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            if (sanitize != null)
+                list = AI.Sanitization.ReportSanitizer.SanitizeResults(list, sanitize).ToList();
             var jsonOptions = CreateJsonOptions();
             var rows        = list.Select((r, idx) => BuildRow(r, idx)).ToList();
             var (runGroups, runsJson) = ComputeRunData(list, jsonOptions);
@@ -102,7 +105,8 @@ namespace SimpleSeleniumSupport.Reporting
         public static string ExportSingleFile(
             IEnumerable<TestResult> results,
             string outFolderRoot,
-            string? reportName = null)
+            string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
@@ -113,7 +117,9 @@ namespace SimpleSeleniumSupport.Reporting
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}", ".html");
 
-            var list        = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            var list = (results ?? Enumerable.Empty<TestResult>()).ToList();
+            if (sanitize != null)
+                list = AI.Sanitization.ReportSanitizer.SanitizeResults(list, sanitize).ToList();
             var jsonOptions = CreateJsonOptions();
             var rows        = list.Select((r, idx) => BuildRow(r, idx)).ToList();
             var (_, runsJson) = ComputeRunData(list, jsonOptions);
@@ -150,7 +156,8 @@ namespace SimpleSeleniumSupport.Reporting
         public static string ExportToExcel(
             IEnumerable<TestResult> results,
             string outFolderRoot,
-            string? reportName = null)
+            string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
@@ -161,7 +168,10 @@ namespace SimpleSeleniumSupport.Reporting
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var outPath   = GetUniqueFilePath(outFolderRoot, $"{safeName}-{timestamp}", ".xlsx");
 
-            ExcelExporter.ExportTestResultsToExcel(results, outPath);
+            var sanitized = sanitize != null
+                ? AI.Sanitization.ReportSanitizer.SanitizeResults(results, sanitize)
+                : results;
+            ExcelExporter.ExportTestResultsToExcel(sanitized, outPath);
 
             return Path.GetFullPath(outPath);
         }

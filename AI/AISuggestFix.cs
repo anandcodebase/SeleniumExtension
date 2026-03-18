@@ -19,11 +19,11 @@ namespace SimpleSeleniumSupport.AI
         /// <param name="testName">Optional test name used to name artifacts</param>
         /// <param name="capture">Optional Capture instance for network traces</param>
         /// <param name="consoleLogs">Optional console logs collected during the test</param>
-        /// <param name="ollamaModel">Model name to call</param>
+        /// <param name="aiModel">Model name override (null = use provider default)</param>
         /// <returns>AI suggestion text</returns>
-        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string? testName = null, Capture? capture = null, IEnumerable<ConsoleLogEntry>? consoleLogs = null, string? ollamaModel = null)
+        public static string AnalyzeAndSuggestFix(this IWebDriver driver, Exception ex, string? testName = null, Capture? capture = null, IEnumerable<ConsoleLogEntry>? consoleLogs = null, string? aiModel = null)
         {
-            ollamaModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
+            aiModel ??= SimpleSeleniumSupportDefaults.OllamaModel;
             testName ??= "UnnamedTest";
 
             // 1) Save diagnostics first (screenshot, HTML, console, network export)
@@ -68,6 +68,9 @@ namespace SimpleSeleniumSupport.AI
                 {
                     domSnippet = DomTrimmer.TrimDom(driver, AISuggestFixConfig.TrimMaxNodes, AISuggestFixConfig.TrimMaxChars);
                     sb.AppendLine("--- VISIBLE DOM SNIPPET (trimmed) ---");
+                    if (AISuggestFixConfig.SanitizeBeforeSend)
+                        domSnippet = Sanitization.PromptSanitizer.SanitizeDomJson(
+                            domSnippet, AISuggestFixConfig.SanitizationOptions);
                     sb.AppendLine(domSnippet);
                     sb.AppendLine();
                 }
@@ -96,12 +99,15 @@ namespace SimpleSeleniumSupport.AI
             }
             catch { /* ignore */ }
             var prompt = sb.ToString();
+            if (AISuggestFixConfig.SanitizeBeforeSend)
+                prompt = Sanitization.PromptSanitizer.Sanitize(
+                    prompt, AISuggestFixConfig.SanitizationOptions);
 
             // 3) Call AI provider safely
             string aiResponse;
             try
             {
-                var opts   = new AIRequestOptions { Model = ollamaModel };
+                var opts   = new AIRequestOptions { Model = aiModel };
                 var result = AIProviderRegistry.Current.Generate(prompt, opts);
                 aiResponse = result.Success ? result.Text : $"AI call failed: {result.ErrorMessage}";
             }
@@ -198,14 +204,24 @@ namespace SimpleSeleniumSupport.AI
                 {
                     sb.AppendLine();
                     sb.AppendLine("--- VISIBLE DOM SNIPPET (trimmed) ---");
-                    sb.AppendLine(DomTrimmer.TrimDom(driver, AISuggestFixConfig.TrimMaxNodes, AISuggestFixConfig.TrimMaxChars));
+                    var domSnippetAsync = DomTrimmer.TrimDom(
+                        driver, AISuggestFixConfig.TrimMaxNodes, AISuggestFixConfig.TrimMaxChars);
+                    if (AISuggestFixConfig.SanitizeBeforeSend)
+                        domSnippetAsync = Sanitization.PromptSanitizer.SanitizeDomJson(
+                            domSnippetAsync, AISuggestFixConfig.SanitizationOptions);
+                    sb.AppendLine(domSnippetAsync);
                 }
             }
             catch { sb.AppendLine("[dom-trim-failed]"); }
 
+            var asyncPrompt = sb.ToString();
+            if (AISuggestFixConfig.SanitizeBeforeSend)
+                asyncPrompt = Sanitization.PromptSanitizer.Sanitize(
+                    asyncPrompt, AISuggestFixConfig.SanitizationOptions);
+
             var opts   = new AIRequestOptions { Model = aiModel };
             var result = await AIProviderRegistry.Current
-                .GenerateAsync(sb.ToString(), opts, cancellationToken)
+                .GenerateAsync(asyncPrompt, opts, cancellationToken)
                 .ConfigureAwait(false);
 
             var aiResponse = result.Success ? result.Text : $"AI call failed: {result.ErrorMessage}";
@@ -256,50 +272,17 @@ namespace SimpleSeleniumSupport.AI
                     return t.Substring(idx).Trim();
             }
 
-            // fallback: look for substring starting at first '/'
-            var firstSlash = aiText.IndexOf('/');
-            if (firstSlash >= 0)
+            // fallback: require '//' so we don't mistake URLs for XPath expressions
+            var doubleSlash = aiText.IndexOf("//", StringComparison.Ordinal);
+            if (doubleSlash >= 0)
             {
-                var sub = aiText.Substring(firstSlash).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
-                if (sub.Length > 2) return sub;
+                var sub = aiText.Substring(doubleSlash)
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+                if (sub.Length > 4) return sub;  // "//x" is minimum viable XPath
             }
 
             return null;
         }
 
-        private static string BuildTrimmedDom(IWebDriver driver, int maxNodes = 500)
-        {
-            try
-            {
-                // Run a small JS that returns an array of nodes in the viewport with tag, text and attributes
-                var js = @"
-                (function(maxNodes){
-                    function attrs(el){
-                        var a = {};
-                        for(var i=0;i<el.attributes.length;i++){ a[el.attributes[i].name]=el.attributes[i].value; }
-                        return a;
-                    }
-                    var nodes = [];
-                    var all = document.querySelectorAll('body *');
-                    for(var i=0;i<all.length && nodes.length<maxNodes;i++){
-                        var el = all[i];
-                        var rect = el.getBoundingClientRect();
-                        if(rect.width>0 && rect.height>0){
-                            nodes.push({ tag: el.tagName.toLowerCase(), text: (el.innerText||'').trim().slice(0,200), attrs: attrs(el) });
-                        }
-                    }
-                    return JSON.stringify(nodes);
-                })(arguments[0]);";
-
-                var jsExec = (IJavaScriptExecutor)driver;
-                var json = jsExec.ExecuteScript(js, maxNodes) as string;
-                if (string.IsNullOrWhiteSpace(json)) return "[no-dom]";
-                return json.Length > 10000 ? json.Substring(0, 10000) + "..." : json;
-            }
-            catch
-            {
-                return "[dom-trim-failed]";
-            }
-        }
     }
 }

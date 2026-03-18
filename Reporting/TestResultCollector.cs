@@ -83,26 +83,35 @@ namespace SimpleSeleniumSupport.Reporting
         /// <param name="outFolderRoot">Parent directory for the timestamped report folder.</param>
         /// <param name="reportName">Display name shown in the report.</param>
         /// <returns>Absolute path of the generated report folder.</returns>
-        public string Export(string outFolderRoot, string? reportName = null)
-            => TestRunReportExporter.Export(Snapshot(), outFolderRoot, reportName);
+        /// <param name="sanitize">
+        /// Optional sanitization options. When provided, sensitive data (passwords, tokens,
+        /// file paths) is scrubbed from the exported results before they are written to disk.
+        /// </param>
+        public string Export(string outFolderRoot, string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
+            => TestRunReportExporter.Export(Snapshot(), outFolderRoot, reportName, sanitize);
 
         /// <summary>
         /// Exports accumulated results to a single self-contained <c>.html</c> file.
         /// </summary>
         /// <param name="outFolderRoot">Directory where the <c>.html</c> file is written.</param>
         /// <param name="reportName">Display name shown in the report and used to name the file.</param>
+        /// <param name="sanitize">Optional sanitization options to scrub sensitive data.</param>
         /// <returns>Absolute path of the generated <c>.html</c> file.</returns>
-        public string ExportSingleFile(string outFolderRoot, string? reportName = null)
-            => TestRunReportExporter.ExportSingleFile(Snapshot(), outFolderRoot, reportName);
+        public string ExportSingleFile(string outFolderRoot, string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
+            => TestRunReportExporter.ExportSingleFile(Snapshot(), outFolderRoot, reportName, sanitize);
 
         /// <summary>
         /// Exports accumulated results to an Excel <c>.xlsx</c> workbook.
         /// </summary>
         /// <param name="outFolderRoot">Directory where the <c>.xlsx</c> file is written.</param>
         /// <param name="reportName">Used to name the output file.</param>
+        /// <param name="sanitize">Optional sanitization options to scrub sensitive data.</param>
         /// <returns>Absolute path of the generated <c>.xlsx</c> file.</returns>
-        public string ExportToExcel(string outFolderRoot, string? reportName = null)
-            => TestRunReportExporter.ExportToExcel(Snapshot(), outFolderRoot, reportName);
+        public string ExportToExcel(string outFolderRoot, string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
+            => TestRunReportExporter.ExportToExcel(Snapshot(), outFolderRoot, reportName, sanitize);
 
         /// <summary>
         /// Exports accumulated results to a JUnit 4 XML file.
@@ -132,14 +141,19 @@ namespace SimpleSeleniumSupport.Reporting
         /// Tuple of the three generated paths:
         /// (<c>folderPath</c>, <c>htmlPath</c>, <c>xlsxPath</c>).
         /// </returns>
+        /// <param name="sanitize">
+        /// Optional sanitization options. When provided, sensitive data is scrubbed from
+        /// all three output formats before they are written to disk.
+        /// </param>
         public (string FolderPath, string HtmlPath, string XlsxPath) ExportAll(
-            string outFolderRoot, string? reportName = null)
+            string outFolderRoot, string? reportName = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null)
         {
             // Snapshot once — all three exports see the same ordered list
             var results = Snapshot();
-            var folder  = TestRunReportExporter.Export(results, outFolderRoot, reportName);
-            var html    = TestRunReportExporter.ExportSingleFile(results, outFolderRoot, reportName);
-            var xlsx    = TestRunReportExporter.ExportToExcel(results, outFolderRoot, reportName);
+            var folder  = TestRunReportExporter.Export(results, outFolderRoot, reportName, sanitize);
+            var html    = TestRunReportExporter.ExportSingleFile(results, outFolderRoot, reportName, sanitize);
+            var xlsx    = TestRunReportExporter.ExportToExcel(results, outFolderRoot, reportName, sanitize);
             return (folder, html, xlsx);
         }
 
@@ -166,8 +180,9 @@ namespace SimpleSeleniumSupport.Reporting
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
-        // Materialise to a stable List so callers can iterate multiple times safely
-        // and the order is consistent within one export call.
-        private List<TestResult> Snapshot() => _bag.ToList();
+        // Materialise to a stable ordered List: StartTime ascending, TestName as tiebreaker.
+        // ConcurrentBag.ToList() is LIFO-per-thread with no stable order guarantee.
+        private List<TestResult> Snapshot()
+            => _bag.OrderBy(r => r.StartTime).ThenBy(r => r.TestName).ToList();
     }
 }

@@ -42,6 +42,13 @@ namespace SimpleSeleniumSupport.Image
 
             /// <summary>Per-channel tolerance (0-255) below which pixels match</summary>
             public int PixelTolerance { get; set; } = 0;
+
+            /// <summary>
+            /// Colour used to fill <see cref="IgnoreRegions"/> in both images before comparison,
+            /// so masked areas contribute zero difference to the score.
+            /// Default: <see cref="Color.Gray"/>.
+            /// </summary>
+            public Color MaskFillColor { get; set; } = Color.Gray;
         }
 
         public sealed class Result
@@ -131,8 +138,8 @@ namespace SimpleSeleniumSupport.Image
                     opt.IgnoreRegions, expOrigSize,
                     new Size(expImg.Width, expImg.Height));
 
-                ApplyMask(expImg, scaledIgnoreRegions);
-                ApplyMask(actImg, scaledIgnoreRegions);
+                ApplyMask(expImg, scaledIgnoreRegions, opt.MaskFillColor);
+                ApplyMask(actImg, scaledIgnoreRegions, opt.MaskFillColor);
 
                 double ssimScore;
                 double edgeScore;
@@ -227,12 +234,13 @@ namespace SimpleSeleniumSupport.Image
             return src.Clone(safe, PixelFormat.Format24bppRgb);
         }
 
-        private static void ApplyMask(Bitmap bmp, IEnumerable<Rectangle> masks)
+        private static void ApplyMask(Bitmap bmp, IEnumerable<Rectangle> masks, Color fillColor)
         {
             if (masks == null) return;
             using var g = Graphics.FromImage(bmp);
+            using var brush = new SolidBrush(fillColor);
             foreach (var r in masks)
-                g.FillRectangle(Brushes.Black, r);
+                g.FillRectangle(brush, r);
         }
 
         // ===================== REGION SCALING =====================
