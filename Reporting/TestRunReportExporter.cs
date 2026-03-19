@@ -470,8 +470,55 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
 .run-rate{font-size:10px;color:#64748b;margin-top:3px;text-align:right}
 .run-progbar{height:3px;border-radius:2px;background:#e2e8f0;margin-top:3px}
 .run-progfill{height:3px;border-radius:2px}
+/* ── Active view button ── */
+.active-v{background:#3b82f6!important;border-color:#3b82f6!important}
+/* ── Tree view ── */
+#tree-view{min-height:60px}
+.suite-block{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;background:var(--card)}
+.suite-hdr{padding:10px 14px;cursor:pointer;background:#f8fafc;display:flex;align-items:center;gap:8px;user-select:none}
+.suite-hdr:hover{background:#f0f4f8}
+.s-chev{font-size:11px;color:#94a3b8;width:14px;display:inline-block;flex-shrink:0;text-align:center}
+.s-name{font-weight:600;font-size:13px;flex:1;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-meta{color:#94a3b8;font-size:11px;white-space:nowrap;flex-shrink:0}
+.s-counts{display:flex;gap:3px;flex-shrink:0}
+.sc{padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.sc.p{background:#dcfce7;color:#166534}.sc.f{background:#fee2e2;color:#991b1b}
+.sc.e{background:#ffedd5;color:#9a3412}.sc.s{background:#f1f5f9;color:#475569}
+.suite-body{display:none}.suite-body.open{display:block}
+.test-row{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 28px;border-top:1px solid #f1f5f9;cursor:pointer;transition:.1s}
+.test-row:hover{background:#f8fafc}
+.test-row[data-st=Fail]{border-left:3px solid var(--c-fail)}
+.test-row[data-st=Error]{border-left:3px solid var(--c-error)}
+.test-row[data-st=Pass]{border-left:3px solid var(--c-pass)}
+.test-row[data-st=Skip]{border-left:3px solid var(--c-skip)}
+.t-icon{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0}
+.t-icon.Pass{background:var(--c-pass)}.t-icon.Fail{background:var(--c-fail)}
+.t-icon.Error{background:var(--c-error)}.t-icon.Skip{background:var(--c-skip)}
+.t-name{flex:1;font-size:12px;color:#1e293b;word-break:break-word;min-width:0}
+.t-dur{color:#94a3b8;font-size:11px;white-space:nowrap;flex-shrink:0}
+.t-arts{display:flex;gap:3px;flex-shrink:0}
+.ab{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;text-decoration:none}
+.ab-ss{background:#eff6ff;color:#1d4ed8}.ab-vid{background:#fdf4ff;color:#7e22ce}.ab-har{background:#f0fdf4;color:#15803d}
+.test-detail{background:#f8fafc;padding:10px 14px 10px 28px;border-top:1px solid #e2e8f0;display:none}
+.test-detail.open{display:block}
+.td-tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap}
+.td-tab{border:1px solid var(--border);background:#fff;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;transition:.1s}
+.td-tab.active{background:#1e293b;color:#fff;border-color:#1e293b}
+.td-pane{display:none}.td-pane.active{display:block}
+.fail-box{background:#fef2f2;border-left:3px solid var(--c-fail);padding:8px 12px;border-radius:0 4px 4px 0;font-size:12px;font-family:monospace;margin-bottom:8px;white-space:pre-wrap;word-break:break-word}
+.stack-box{font-size:11px;background:#0f172a;color:#e2e8f0;border-radius:4px;padding:10px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 /* Run badge in grid */
 .run-badge{background:#e0e7ff;color:#3730a3;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+/* ── Run-level blocks (3-level tree for consolidated reports) ── */
+.run-block{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;background:var(--card)}
+.run-block-hdr{padding:11px 14px;cursor:pointer;background:#1e293b;color:#f1f5f9;display:flex;align-items:center;gap:8px;user-select:none}
+.run-block-hdr:hover{background:#273549}
+.rb-chev{font-size:11px;color:#94a3b8;width:14px;display:inline-block;flex-shrink:0;text-align:center}
+.rb-name{font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.run-block-body{display:none;padding:8px 8px 4px}.run-block-body.open{display:block}
+.run-block-body .suite-block{margin-bottom:6px}
+.run-block-body .test-row{padding-left:42px}
+.run-block-body .test-detail{padding-left:42px}
 </style>
 </head>
 <body>
@@ -480,9 +527,15 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
 <div id="topbar">
   <h1>[[REPORT_NAME]]</h1>
   <span id="gen-time" style="color:#94a3b8;font-size:11px">Generated [[GEN_TIME]]</span>
-  <div style="margin-left:auto;display:flex;gap:8px">
-    <button id="btnCsv"  class="btn btn-sm btn-outline-light">Export CSV</button>
-    <button id="btnJson" class="btn btn-sm btn-outline-light">Export JSON</button>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+    <div style="display:flex;gap:3px">
+      <button id="vbtn-table" class="btn btn-sm btn-outline-light active-v" onclick="window.setView('table')">⊞ Table</button>
+      <button id="vbtn-tree"  class="btn btn-sm btn-outline-light"          onclick="window.setView('tree')">⊟ Tree</button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="btnCsv"  class="btn btn-sm btn-outline-light">Export CSV</button>
+      <button id="btnJson" class="btn btn-sm btn-outline-light">Export JSON</button>
+    </div>
   </div>
 </div>
 
@@ -523,6 +576,7 @@ pre.stack-pre{background:#0f172a;color:#e2e8f0;border-radius:6px;padding:14px;fo
 
 <!-- ── Grid ───────────────────────────────────────────────────────────── -->
 <div id="main"><div id="grid"></div></div>
+<div id="tree-view" style="display:none;padding:0 20px 20px"></div>
 
 <!-- ── Detail modal ───────────────────────────────────────────────────── -->
 <div class="modal fade modal-xl" id="detailModal" tabindex="-1" aria-hidden="true">
@@ -696,6 +750,7 @@ function applyFilters(){
   });
   renderGrid(FILTERED);
   renderStats(ALL_ROWS, FILTERED);
+  if(currentView==='tree') buildTree(FILTERED);
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────
@@ -806,6 +861,11 @@ function statusBadge(s){
 }
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toFileUrl(p){
+  if(!p)return '';
+  if(/^(https?|file):\/\//i.test(p))return p;
+  return 'file:///'+p.replace(/\\/g,'/');
+}
 
 // ── Detail modal ───────────────────────────────────────────────────────
 const modalEl = document.getElementById('detailModal');
@@ -868,8 +928,8 @@ function openDetail(idx){
   const ssWrap = document.getElementById('ss-wrap');
   if(r.screenshot){
     ssWrap.style.display='';
-    document.getElementById('ss-img').src   = r.screenshot;
-    document.getElementById('ss-link').href = r.screenshot;
+    document.getElementById('ss-img').src   = toFileUrl(r.screenshot);
+    document.getElementById('ss-link').href = toFileUrl(r.screenshot);
   } else ssWrap.style.display='none';
 
   // ── Screencast ────────────────────────────────────────────────────
@@ -880,10 +940,10 @@ function openDetail(idx){
   if(r.screencast){
     if(isVideoUrl(r.screencast)){
       scVid.style.display='';
-      scVid.src = r.screencast;
+      scVid.src = toFileUrl(r.screencast);
     } else {
       scLink.style.display='';
-      document.getElementById('sc-link').href = r.screencast;
+      document.getElementById('sc-link').href = toFileUrl(r.screencast);
     }
   }
 
@@ -893,11 +953,11 @@ function openDetail(idx){
   document.getElementById('net-content').style.display = hasNet ? '' : 'none';
   if(r.networkHar){
     document.getElementById('net-har-wrap').style.display='';
-    document.getElementById('net-har').href=r.networkHar;
+    document.getElementById('net-har').href=toFileUrl(r.networkHar);
   } else document.getElementById('net-har-wrap').style.display='none';
   if(r.networkExcel){
     document.getElementById('net-excel-wrap').style.display='';
-    document.getElementById('net-excel').href=r.networkExcel;
+    document.getElementById('net-excel').href=toFileUrl(r.networkExcel);
   } else document.getElementById('net-excel-wrap').style.display='none';
 
   // ── Custom Props ─────────────────────────────────────────────────
@@ -1045,6 +1105,190 @@ function download(name,content,type){
   a.href=URL.createObjectURL(new Blob([content],{type}));
   a.download=name; a.click();
 }
+// ── View toggle ──────────────────────────────────────────────────────────
+let currentView = 'table';
+window.setView = function(v){
+  currentView = v;
+  document.getElementById('main').style.display      = v==='table' ? '' : 'none';
+  document.getElementById('tree-view').style.display = v==='tree'  ? '' : 'none';
+  document.getElementById('vbtn-table').classList.toggle('active-v', v==='table');
+  document.getElementById('vbtn-tree').classList.toggle('active-v',  v==='tree');
+  if(v==='tree') buildTree(FILTERED);
+};
+
+// ── Tree builder ─────────────────────────────────────────────────────────
+function buildTree(rows){
+  const el = document.getElementById('tree-view');
+  el.innerHTML = '';
+  if(!rows.length){
+    el.innerHTML = '<div style="padding:30px;text-align:center;color:#94a3b8;font-size:13px">No results match current filters.</div>';
+    return;
+  }
+  if(HAS_RUNS){
+    // 3-level: Run (source report) → Suite → Test
+    const runMap = new Map();
+    rows.forEach(r => {
+      const rn = r.runName || '(No Run)';
+      if(!runMap.has(rn)) runMap.set(rn, []);
+      runMap.get(rn).push(r);
+    });
+    [...runMap.entries()]
+      .sort(([,a],[,b]) => {
+        const aF = a.some(t=>t.status==='Fail'||t.status==='Error');
+        const bF = b.some(t=>t.status==='Fail'||t.status==='Error');
+        return aF===bF ? 0 : aF ? -1 : 1;
+      })
+      .forEach(([name, tests]) => el.appendChild(makeRunBlock(name, tests)));
+  } else {
+    // 2-level: Suite → Test
+    const suiteMap = new Map();
+    rows.forEach(r => {
+      const key = r.testSuite || '(No Suite)';
+      if(!suiteMap.has(key)) suiteMap.set(key, []);
+      suiteMap.get(key).push(r);
+    });
+    [...suiteMap.entries()]
+      .sort(([,a],[,b]) => {
+        const aF = a.some(t=>t.status==='Fail'||t.status==='Error');
+        const bF = b.some(t=>t.status==='Fail'||t.status==='Error');
+        return aF===bF ? 0 : aF ? -1 : 1;
+      })
+      .forEach(([k, tests]) => el.appendChild(makeSuiteBlock(k, tests)));
+  }
+}
+
+function makeRunBlock(name, tests){
+  const pass=tests.filter(t=>t.status==='Pass').length;
+  const fail=tests.filter(t=>t.status==='Fail').length;
+  const skip=tests.filter(t=>t.status==='Skip').length;
+  const err =tests.filter(t=>t.status==='Error').length;
+  const ms  =tests.reduce((s,t)=>s+t.durationMs, 0);
+  const open = fail>0||err>0;
+  const suiteMap = new Map();
+  tests.forEach(r => {
+    const key = r.testSuite || '(No Suite)';
+    if(!suiteMap.has(key)) suiteMap.set(key, []);
+    suiteMap.get(key).push(r);
+  });
+  const suiteBlocks = [...suiteMap.entries()]
+    .sort(([,a],[,b]) => {
+      const aF = a.some(t=>t.status==='Fail'||t.status==='Error');
+      const bF = b.some(t=>t.status==='Fail'||t.status==='Error');
+      return aF===bF ? 0 : aF ? -1 : 1;
+    })
+    .map(([k, ts]) => makeSuiteBlock(k, ts).outerHTML)
+    .join('');
+  const d = document.createElement('div');
+  d.className = 'run-block';
+  d.innerHTML = `
+    <div class="run-block-hdr" onclick="var b=this.nextElementSibling;b.classList.toggle('open');this.querySelector('.rb-chev').textContent=b.classList.contains('open')?'\u25BC':'\u25B6'">
+      <span class="rb-chev">${open?'\u25BC':'\u25B6'}</span>
+      <div class="s-counts">
+        ${pass?`<span class="sc p">${pass}</span>`:''}
+        ${fail?`<span class="sc f">${fail}</span>`:''}
+        ${err ?`<span class="sc e">${err}</span>` :''}
+        ${skip?`<span class="sc s">${skip}</span>`:''}
+      </div>
+      <span class="rb-name" title="${esc(name)}">${esc(name)}</span>
+      <span class="s-meta" style="color:#94a3b8">${fmtDur(ms)}&nbsp;&middot;&nbsp;${tests.length}&nbsp;test${tests.length!==1?'s':''}</span>
+    </div>
+    <div class="run-block-body${open?' open':''}">
+      ${suiteBlocks}
+    </div>`;
+  return d;
+}
+
+function makeSuiteBlock(name, tests){
+  const pass=tests.filter(t=>t.status==='Pass').length;
+  const fail=tests.filter(t=>t.status==='Fail').length;
+  const skip=tests.filter(t=>t.status==='Skip').length;
+  const err =tests.filter(t=>t.status==='Error').length;
+  const ms  =tests.reduce((s,t)=>s+t.durationMs, 0);
+  const open = fail>0||err>0;
+  const d = document.createElement('div');
+  d.className = 'suite-block';
+  d.innerHTML = `
+    <div class="suite-hdr" onclick="var b=this.nextElementSibling;b.classList.toggle('open');this.querySelector('.s-chev').textContent=b.classList.contains('open')?'\u25BC':'\u25B6'">
+      <span class="s-chev">${open ? '\u25BC' : '\u25B6'}</span>
+      <div class="s-counts">
+        ${pass ? `<span class="sc p">${pass}</span>` : ''}
+        ${fail ? `<span class="sc f">${fail}</span>` : ''}
+        ${err  ? `<span class="sc e">${err}</span>`  : ''}
+        ${skip ? `<span class="sc s">${skip}</span>` : ''}
+      </div>
+      <span class="s-name" title="${esc(name)}">${esc(name)}</span>
+      <span class="s-meta">${fmtDur(ms)}&nbsp;&middot;&nbsp;${tests.length}&nbsp;test${tests.length!==1?'s':''}</span>
+    </div>
+    <div class="suite-body${open ? ' open' : ''}">
+      ${tests.map(t => makeTestRow(t)).join('')}
+    </div>`;
+  return d;
+}
+
+function makeTestRow(r){
+  const ico = {Pass:'\u2713',Fail:'\u2715',Skip:'\u2298',Error:'!'}[r.status]||'?';
+  const arts = [
+    r.screenshot ? `<a class="ab ab-ss"  href="${esc(toFileUrl(r.screenshot))}"  target="_blank" onclick="event.stopPropagation()" title="Screenshot">\uD83D\uDCF7</a>` : '',
+    r.screencast ? `<a class="ab ab-vid" href="${esc(toFileUrl(r.screencast))}"  target="_blank" onclick="event.stopPropagation()" title="Video">\uD83C\uDFAC</a>` : '',
+    r.networkHar ? `<a class="ab ab-har" href="${esc(toFileUrl(r.networkHar))}"  target="_blank" onclick="event.stopPropagation()" title="HAR">\uD83C\uDF10</a>` : '',
+  ].join('');
+  return `
+    <div class="test-row" data-st="${esc(r.status)}" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span class="t-icon ${esc(r.status)}">${ico}</span>
+      <span class="t-name">${esc(r.testName)}</span>
+      <span class="t-dur">${fmtDur(r.durationMs)}</span>
+      ${arts ? `<div class="t-arts">${arts}</div>` : ''}
+    </div>
+    <div class="test-detail">${makeTestDetail(r)}</div>`;
+}
+
+function makeTestDetail(r){
+  const sec = [];
+  const ovF = [['Status',statusBadge(r.status)],['Duration',fmtDur(r.durationMs)],['Suite',r.testSuite],
+               ['Category',r.category],['Tags',r.tags],['Browser',r.browser],
+               ['Environment',r.environment],['Machine',r.machineName]].filter(([,v])=>v);
+  sec.push({id:'ov',label:'Overview',active:true,
+    html:`<table style="font-size:12px;border-collapse:collapse">${ovF.map(([k,v])=>`<tr><td style="padding:2px 14px 2px 0;color:#64748b;white-space:nowrap">${esc(k)}</td><td style="padding:2px 0">${v}</td></tr>`).join('')}</table>`});
+  if(r.exceptionMsg||r.stackTrace||r.assertMsg){
+    sec.push({id:'fl',label:'Failure',active:false,
+      html:`<div class="fail-box">${esc((r.exceptionType?r.exceptionType+': ':'')+r.exceptionMsg)}</div>
+      ${r.assertMsg?`<div style="background:#fffbeb;border-left:3px solid #fbbf24;padding:6px 12px;border-radius:0 4px 4px 0;font-size:12px;margin-bottom:8px">${esc(r.assertMsg)}</div>`:''}
+      ${r.stackTrace?`<pre class="stack-box">${esc(r.stackTrace)}</pre>`:''}`});
+  }
+  if(r.screenshot){
+    const u=toFileUrl(r.screenshot);
+    sec.push({id:'ss',label:'Screenshot',active:false,
+      html:`<img src="${esc(u)}" style="max-width:100%;border-radius:4px;border:1px solid var(--border);cursor:zoom-in" onclick="openLightbox('${esc(u)}')" alt="screenshot"/>
+      <div style="margin-top:6px"><a href="${esc(u)}" target="_blank" class="btn btn-sm btn-outline-secondary">Open full size</a></div>`});
+  }
+  if(r.screencast){
+    const u=toFileUrl(r.screencast);
+    sec.push({id:'vid',label:'Video',active:false,
+      html:isVideoUrl(r.screencast)
+        ?`<video controls style="width:100%;max-height:280px;background:#000;border-radius:4px"><source src="${esc(u)}"/></video>`
+        :`<a href="${esc(u)}" target="_blank" class="btn btn-sm btn-outline-primary">Open Video</a>`});
+  }
+  if(r.networkHar||r.networkExcel){
+    sec.push({id:'net',label:'Network',active:false,
+      html:`${r.networkHar?`<a href="${esc(toFileUrl(r.networkHar))}" target="_blank" class="btn btn-sm btn-outline-primary me-2">Download HAR</a>`:''}`+
+           `${r.networkExcel?`<a href="${esc(toFileUrl(r.networkExcel))}" target="_blank" class="btn btn-sm btn-outline-success">Download Excel</a>`:''}`});
+  }
+  if(r.aiAnalysis){
+    sec.push({id:'ai',label:'AI Analysis',active:false,
+      html:`<div class="ai-panel">${renderAI(r.aiAnalysis)}</div>`});
+  }
+  const tabs  = `<div class="td-tabs">${sec.map(s=>`<button class="td-tab${s.active?' active':''}" data-tdtab="${s.id}" onclick="switchTdTab(this)">${s.label}</button>`).join('')}</div>`;
+  const panes = sec.map(s=>`<div class="td-pane${s.active?' active':''}" data-tdpane="${s.id}">${s.html}</div>`).join('');
+  return tabs+panes;
+}
+
+window.switchTdTab = function(btn){
+  const d  = btn.closest('.test-detail');
+  const id = btn.dataset.tdtab;
+  d.querySelectorAll('.td-tab').forEach(b => b.classList.toggle('active', b.dataset.tdtab===id));
+  d.querySelectorAll('.td-pane').forEach(p => p.classList.toggle('active', p.dataset.tdpane===id));
+};
+
 })();
 </script>
 </body>
