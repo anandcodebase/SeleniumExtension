@@ -50,6 +50,13 @@ namespace SimpleSeleniumSupport.Reporting
             var errorStyle = MakeColorStyle(wb, IndexedColors.LightOrange.Index);
             var skipStyle  = MakeColorStyle(wb, IndexedColors.Grey25Percent.Index);
 
+            // AI classification colour styles
+            var aiProductStyle   = MakeColorStyle(wb, IndexedColors.Rose.Index);
+            var aiTestStyle      = MakeColorStyle(wb, IndexedColors.LightYellow.Index);
+            var aiFlakyStyle     = MakeColorStyle(wb, IndexedColors.LightOrange.Index);
+            var aiInfraStyle     = MakeColorStyle(wb, IndexedColors.Lavender.Index);
+            var aiUncertainStyle = MakeColorStyle(wb, IndexedColors.Grey25Percent.Index);
+
             // ── Header row ────────────────────────────────────────────────────
             string[] headers =
             [
@@ -58,7 +65,7 @@ namespace SimpleSeleniumSupport.Reporting
                 "Browser", "Environment", "Machine",
                 "Exception Type", "Exception Message", "Stack Trace", "Assert Message", "Skip Reason",
                 "Screenshot", "Screencast", "Diagnostics Folder", "Network HAR", "Network Excel",
-                "AI Analysis", "Custom Properties"
+                "AI Analysis", "AI Classification", "AI Confidence", "Custom Properties"
             ];
 
             var hdr = sheet.CreateRow(0);
@@ -120,6 +127,23 @@ namespace SimpleSeleniumSupport.Reporting
                 Str(row, c++, r.NetworkExcelPath);                                   // Network Excel
                 WrapStr(row, c++, r.AiAnalysis, wrapStyle);                          // AI Analysis
 
+                // AI Classification — colour coded to match HTML report badges
+                var aiClassCell = row.CreateCell(c++);
+                aiClassCell.SetCellValue(r.AiClassification ?? "");
+                if (!string.IsNullOrEmpty(r.AiClassification))
+                {
+                    aiClassCell.CellStyle = r.AiClassification switch
+                    {
+                        "ProductIssue"   => aiProductStyle,
+                        "TestIssue"      => aiTestStyle,
+                        "Flaky"          => aiFlakyStyle,
+                        "Infrastructure" => aiInfraStyle,
+                        _                => aiUncertainStyle
+                    };
+                }
+
+                Str(row, c++, r.AiConfidence);                                       // AI Confidence
+
                 // Custom Properties — serialised as "key=value" pairs, one per line
                 var cp = r.CustomProperties?.Count > 0
                     ? string.Join("\n", r.CustomProperties.Select(kv => $"{kv.Key}={kv.Value}"))
@@ -138,8 +162,8 @@ namespace SimpleSeleniumSupport.Reporting
 
             // ── Column widths ─────────────────────────────────────────────────
             // Auto-size narrow columns; cap wide text columns to avoid extreme widths.
-            int[] autoSizeCols  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21];
-            int[] wideTextCols  = [13, 14, 15, 16, 22, 23, 24];   // cap at 60 chars wide
+            int[] autoSizeCols  = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 24, 25];
+            int[] wideTextCols  = [13, 14, 15, 16, 22, 23, 26];   // cap at 60 chars wide
             foreach (var col in autoSizeCols) { try { sheet.AutoSizeColumn(col); } catch { } }
             foreach (var col in wideTextCols) { try { sheet.SetColumnWidth(col, 60 * 256); } catch { } }
 

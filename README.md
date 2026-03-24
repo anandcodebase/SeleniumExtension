@@ -1,6 +1,6 @@
 # SimpleSeleniumSupport
 
-An advanced Selenium WebDriver toolkit for .NET 8+ that adds AI-powered element finding, network monitoring, visual regression testing, Playwright-style selectors, video recording, and rich reporting — all as extension methods on your existing `IWebDriver`.
+An advanced Selenium WebDriver toolkit for .NET 8+ that adds AI-powered element finding, network monitoring, visual regression testing, Playwright-style selectors, OCR, performance budgets, notifications, analytics, video recording, and rich reporting — all as extension methods on your existing `IWebDriver`.
 
 [![NuGet](https://img.shields.io/nuget/v/SimpleSeleniumSupport)](https://www.nuget.org/packages/SimpleSeleniumSupport)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com)
@@ -12,16 +12,29 @@ An advanced Selenium WebDriver toolkit for .NET 8+ that adds AI-powered element 
 1. [Installation](#installation)
 2. [Global Configuration](#global-configuration)
 3. [AI Element Finding](#ai-element-finding)
-4. [AI Failure Analysis](#ai-failure-analysis)
-5. [Network Capture & Monitoring](#network-capture--monitoring)
-6. [Playwright-Style Selectors](#playwright-style-selectors)
-7. [Visual Regression Testing](#visual-regression-testing)
-8. [Video Recording](#video-recording)
-9. [Failure Diagnostics](#failure-diagnostics)
-10. [Network Reporting](#network-reporting)
-11. [Test Run Report](#test-run-report)
-12. [Consolidated Report Builder](#consolidated-report-builder)
-13. [Requirements](#requirements)
+4. [Multi-Provider AI Support](#multi-provider-ai-support)
+5. [AI Failure Analysis](#ai-failure-analysis)
+6. [AI Prompt Sanitization](#ai-prompt-sanitization)
+7. [Network Capture & Monitoring](#network-capture--monitoring)
+8. [Playwright-Style Selectors](#playwright-style-selectors)
+9. [Resilient Selector Engine](#resilient-selector-engine)
+10. [Visual Regression Testing](#visual-regression-testing)
+11. [OCR Text Extraction](#ocr-text-extraction)
+12. [Web Performance Monitoring](#web-performance-monitoring)
+13. [Screenshot Annotation](#screenshot-annotation)
+14. [Accessibility Auditing](#accessibility-auditing)
+15. [Video Recording](#video-recording)
+16. [Failure Diagnostics](#failure-diagnostics)
+17. [Network Reporting](#network-reporting)
+18. [Test Run Report](#test-run-report)
+19. [Parallel Test Reporting (TestResultCollector)](#parallel-test-reporting-testresultcollector)
+20. [CI / Format Export](#ci--format-export)
+21. [Notifications](#notifications)
+22. [Analytics & Flakiness Detection](#analytics--flakiness-detection)
+23. [Consolidated Report Builder](#consolidated-report-builder)
+24. [Structured Logging](#structured-logging)
+25. [Requirements](#requirements)
+26. [Full Example — NUnit Test Class](#full-example--nunit-test-class)
 
 ---
 
@@ -42,12 +55,20 @@ Install-Package SimpleSeleniumSupport
 ```csharp
 using SimpleSeleniumSupport;
 using SimpleSeleniumSupport.AI;
+using SimpleSeleniumSupport.AI.Sanitization;
 using SimpleSeleniumSupport.Network;
 using SimpleSeleniumSupport.Image;
+using SimpleSeleniumSupport.OCR;
+using SimpleSeleniumSupport.Performance;
 using SimpleSeleniumSupport.Selectors;
+using SimpleSeleniumSupport.Selectors.Engine;
+using SimpleSeleniumSupport.Accessibility;
 using SimpleSeleniumSupport.Recording;
 using SimpleSeleniumSupport.Reporting;
 using SimpleSeleniumSupport.Diagnostics;
+using SimpleSeleniumSupport.Notifications;
+using SimpleSeleniumSupport.Analytics;
+using SimpleSeleniumSupport.CiExport;
 ```
 
 ---
@@ -65,6 +86,7 @@ public static void Configure()
     SimpleSeleniumSupportDefaults.OllamaModel     = "llama3";       // any model pulled via 'ollama pull'
     SimpleSeleniumSupportDefaults.OllamaTimeoutMs = 60_000;         // 60 s per AI call
     SimpleSeleniumSupportDefaults.AiRetries       = 3;              // retry AI selector generation
+    SimpleSeleniumSupportDefaults.AiSanitizeByDefault = true;       // scrub sensitive data before AI calls
 
     // ── Timeouts ─────────────────────────────────────────────
     SimpleSeleniumSupportDefaults.WaitTimeoutSeconds        = 15;   // WaitAndFindByAI
@@ -74,10 +96,33 @@ public static void Configure()
     // ── Visual regression ─────────────────────────────────────
     SimpleSeleniumSupportDefaults.VisualThreshold = 97.0;           // % similarity to pass
 
+    // ── OCR ───────────────────────────────────────────────────
+    SimpleSeleniumSupportDefaults.OcrTessdataPath = "tessdata";     // path to tessdata folder
+    SimpleSeleniumSupportDefaults.OcrLanguage     = "eng";          // Tesseract language pack
+
     // ── Video recording ───────────────────────────────────────
     SimpleSeleniumSupportDefaults.VideoRecordingFfmpegPath      = "ffmpeg";       // or full path to ffmpeg.exe
     SimpleSeleniumSupportDefaults.VideoRecordingOutputDirectory = "Recordings";
     SimpleSeleniumSupportDefaults.VideoRecordingFrameRate       = 5;              // fps; 5 is reliable in CI
+
+    // ── Screenshot annotation ─────────────────────────────────
+    SimpleSeleniumSupportDefaults.AnnotateScreenshotsOnFailure = true;            // red banner on failure screenshots
+
+    // ── Failure analysis (post-run batch AI classifier) ────────
+    SimpleSeleniumSupportDefaults.FailureAnalysisGrouping           = FailureGroupingStrategy.PerClass;
+    SimpleSeleniumSupportDefaults.FailureAnalysisMaxStackTraceChars = 1500;       // chars of stack per test in prompt
+    SimpleSeleniumSupportDefaults.FailureAnalysisMaxGroupPromptChars= 8000;       // total prompt budget per group
+    SimpleSeleniumSupportDefaults.FailureAnalysisIncludeScreenshot  = true;       // reference screenshot path in prompt
+    SimpleSeleniumSupportDefaults.FailureAnalysisMaxParallelism     = 3;          // concurrent AI group calls
+
+    // ── Analytics ─────────────────────────────────────────────
+    SimpleSeleniumSupportDefaults.AnalyticsEnabled          = true;
+    SimpleSeleniumSupportDefaults.AnalyticsHistoryDirectory = "TestReports/history";
+    SimpleSeleniumSupportDefaults.AnalyticsMaxRunsKept      = 50;
+
+    // ── Logging ───────────────────────────────────────────────
+    SimpleSeleniumSupportDefaults.LoggerFactory = LoggerFactory.Create(b =>
+        b.AddConsole().SetMinimumLevel(LogLevel.Debug));
 }
 ```
 
@@ -85,7 +130,7 @@ public static void Configure()
 
 ## AI Element Finding
 
-Requires a running [Ollama](https://ollama.com) instance. Uses the page DOM to generate XPath selectors via a local LLM.
+Requires a running [Ollama](https://ollama.com) instance (or configure another AI provider — see [Multi-Provider AI Support](#multi-provider-ai-support)). Uses the page DOM to generate XPath selectors via a local LLM.
 
 ### Basic find
 
@@ -144,9 +189,84 @@ OllamaClient.MockResponse = "//button[@id='submit']";
 
 ---
 
+## Multi-Provider AI Support
+
+Switch the AI backend from Ollama to OpenAI, Azure OpenAI, Anthropic (Claude), or Google Gemini — all through the same `AIProviderRegistry`. Register once at suite startup; all AI calls (`FindElementByAI`, `AnalyzeAndSuggestFix`, etc.) use the active provider automatically.
+
+### Use OpenAI (GPT-4o)
+
+```csharp
+AIProviderRegistry.Use("openai", new AIProviderConfig
+{
+    ApiKey = Environment.GetEnvironmentVariable("OPENAI_KEY"),
+    Model  = "gpt-4o-mini"   // default if omitted: gpt-4o-mini
+});
+```
+
+### Use Azure OpenAI
+
+```csharp
+AIProviderRegistry.Use("azure-openai", new AIProviderConfig
+{
+    ApiKey       = Environment.GetEnvironmentVariable("AZURE_OPENAI_KEY"),
+    BaseUrl      = "https://my-resource.openai.azure.com/openai/deployments/my-deploy/chat/completions",
+    ApiVersion   = "2024-02-01",
+    DeploymentId = "my-deploy"
+});
+```
+
+### Use Anthropic (Claude)
+
+```csharp
+AIProviderRegistry.Use("anthropic", new AIProviderConfig
+{
+    ApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_KEY"),
+    Model  = "claude-3-haiku-20240307"
+});
+```
+
+### Use Google Gemini
+
+```csharp
+AIProviderRegistry.Use("gemini", new AIProviderConfig
+{
+    ApiKey = Environment.GetEnvironmentVariable("GEMINI_KEY"),
+    Model  = "gemini-1.5-flash"
+});
+```
+
+### Register a custom provider
+
+```csharp
+// Implement IAIProvider for any backend not listed above
+AIProviderRegistry.Register(new MyCustomAIProvider());
+
+// Read the currently active provider
+IAIProvider current = AIProviderRegistry.Current;
+```
+
+### AIProviderConfig reference
+
+| Property | Description |
+|----------|-------------|
+| `ApiKey` | API key for authentication |
+| `BaseUrl` | Override the default endpoint URL |
+| `Model` | Default model for the provider |
+| `TimeoutMs` | HTTP timeout (default: `SimpleSeleniumSupportDefaults.OllamaTimeoutMs`) |
+| `ApiVersion` | Azure OpenAI API version (e.g. `"2024-02-01"`) |
+| `DeploymentId` | Azure OpenAI deployment name |
+
+---
+
 ## AI Failure Analysis
 
-When a test fails, call `AnalyzeAndSuggestFix` to get AI-powered explanations and remediation steps. Diagnostics (screenshot, HTML, network) are saved automatically.
+Two complementary AI analysis tools: **`AnalyzeAndSuggestFix`** (inline, per-test, while the browser is still open) and **`TestFailureAnalyzer`** (post-run batch classifier that determines whether failures are test bugs or product bugs).
+
+---
+
+### Per-test analysis — `AnalyzeAndSuggestFix`
+
+Call in `[TearDown]` while the browser is still open. Saves diagnostics automatically (screenshot, HTML, network) and returns a free-text AI suggestion.
 
 ```csharp
 [TearDown]
@@ -169,17 +289,179 @@ public void TearDown()
 }
 ```
 
-The AI response includes:
+The response includes:
 - 2 probable causes for the failure
 - 2 concrete code-level fixes (with XPath/CSS examples)
-- An `XPATH_CANDIDATE:` line that is immediately validated against the live page
+- An `XPATH_CANDIDATE:` line validated immediately against the live page
 
-### Tune DOM trimming
+#### Tune DOM trimming
 
 ```csharp
 AISuggestFixConfig.UseTrimmedDom = true;   // default
 AISuggestFixConfig.TrimMaxNodes  = 300;    // reduce for faster AI calls
 AISuggestFixConfig.TrimMaxChars  = 8_000;
+```
+
+---
+
+### Post-run failure classifier — `TestFailureAnalyzer`
+
+After all tests finish, `TestFailureAnalyzer` groups the failed tests, sends them to AI in batches, and classifies each failure as:
+
+| Classification | Meaning |
+|----------------|---------|
+| `TestIssue` | Bug in the test code, selector, assertion logic, or test data |
+| `ProductIssue` | Genuine defect in the application under test |
+| `Flaky` | Intermittent failure — timing, race conditions, or retry exhaustion |
+| `Infrastructure` | CI/CD, browser driver version, network, or missing dependency |
+| `Uncertain` | Insufficient information to classify |
+
+Results are written back to `TestResult.AiClassification`, `TestResult.AiConfidence`, and `TestResult.AiAnalysis`, so they appear **automatically** in every exported HTML and Excel report — no extra export call needed.
+
+#### Classify via `TestResultCollector` (recommended)
+
+```csharp
+[OneTimeTearDown]
+public static async Task ExportReports()
+{
+    // Analyze failures first — mutates AiClassification on each failing TestResult
+    await Collector.AnalyzeFailuresAsync(new FailureAnalysisOptions
+    {
+        Grouping    = FailureGroupingStrategy.PerClass,   // group failures by test class
+        AiModel     = null,                               // null = provider default
+        Sanitization = new SanitizationOptions            // scrub passwords, tokens, paths
+        {
+            RedactPasswords = true,
+            RedactEmails    = true,
+            RedactApiTokens = true,
+            RedactFilePaths = true
+        }
+    });
+
+    // Then export — AI columns are already populated
+    Collector.ExportSingleFile("TestReports", "My Suite");
+    Collector.ExportToExcel("TestReports", "My Suite");
+}
+```
+
+#### Grouping strategies — token economics
+
+| Strategy | AI calls (100 failures, 10 classes) | Token cost | Best for |
+|----------|--------------------------------------|------------|----------|
+| `PerTest` | 100 | Highest | Small suites needing maximum precision |
+| `PerClass` | 10 | Medium | **Default** — good balance |
+| `PerCategory` | 3–5 | Low | Category-level triage |
+| `PerBrowser` | 2–4 | Low | Cross-browser comparison |
+| `AllTogether` | 1 | Lowest | Quick bulk triage |
+
+#### Standalone usage (without `TestResultCollector`)
+
+```csharp
+var analyzer = new TestFailureAnalyzer(new FailureAnalysisOptions
+{
+    Grouping       = FailureGroupingStrategy.PerCategory,
+    MaxParallelism = 5                                   // 5 concurrent AI calls
+});
+
+IReadOnlyList<FailureAnalysisResult> results =
+    await analyzer.AnalyzeAsync(myTestResults);
+
+foreach (var r in results)
+{
+    Console.WriteLine($"{r.TestName}: {r.Classification} ({r.Confidence})");
+    Console.WriteLine($"  Reason: {r.Reasoning}");
+    Console.WriteLine($"  Fix:    {r.SuggestedFix}");
+}
+```
+
+#### `FailureAnalysisResult` properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `TestName` | `string` | Matches `TestResult.TestName` |
+| `Classification` | `FailureClassification` | Root cause category |
+| `Confidence` | `AnalysisConfidence` | `High` / `Medium` / `Low` |
+| `Reasoning` | `string` | AI explanation paragraph |
+| `SuggestedFix` | `string` | One actionable sentence |
+| `RawResponse` | `string` | Full unparsed AI response |
+| `GroupKey` | `string?` | Batch group the test belonged to |
+
+#### `FailureAnalysisOptions` reference
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Grouping` | `PerClass` | How to batch failures before calling AI |
+| `AiModel` | `null` (provider default) | Model name override |
+| `IncludeScreenshot` | `true` | Include screenshot filename in prompt |
+| `UseVisionModel` | `false` | Embed screenshot as base64 (vision models only) |
+| `MaxStackTraceCharsPerTest` | `1500` | Stack trace budget per test |
+| `MaxGroupPromptChars` | `8000` | Total prompt character budget per group |
+| `MaxParallelism` | `3` | Concurrent AI calls |
+| `Sanitization` | all redactions on | Set `null` to disable |
+| `MutateTestResults` | `true` | Write results back to `TestResult` fields |
+
+#### HTML report — AI column and filter
+
+After running `AnalyzeFailuresAsync()`, every failed row in the HTML report shows:
+
+- **AI column** in the grid — colour-coded badge: ![red](https://img.shields.io/badge/-Product%20Issue-fee2e2) ![yellow](https://img.shields.io/badge/-Test%20Issue-fef9c3) ![orange](https://img.shields.io/badge/-Flaky-ffedd5) ![purple](https://img.shields.io/badge/-Infrastructure-f3e8ff) ![grey](https://img.shields.io/badge/-Uncertain-f1f5f9) with a confidence dot (● High / ◑ Medium / ○ Low)
+- **AI Classification filter** dropdown in the filter bar — click to show only `ProductIssue` failures
+- **AI Analysis tab** in the row detail modal — classification badge at the top, then reasoning and suggested fix
+
+#### Excel report — AI columns
+
+Two new columns appear after "AI Analysis":
+
+| Column | Content | Colour coding |
+|--------|---------|---------------|
+| **AI Classification** | `ProductIssue` / `TestIssue` / `Flaky` / `Infrastructure` / `Uncertain` | Rose / Yellow / Orange / Lavender / Grey |
+| **AI Confidence** | `High` / `Medium` / `Low` | Plain text |
+
+---
+
+## AI Prompt Sanitization
+
+`PromptSanitizer` automatically scrubs passwords, usernames, email addresses, API tokens, Bearer tokens, and file-system paths from AI prompts and DOM snapshots before they leave the process. Enable globally or call manually.
+
+### Enable globally
+
+```csharp
+// All AI calls will auto-sanitize — opt-in per fixture is also possible
+SimpleSeleniumSupportDefaults.AiSanitizeByDefault = true;
+```
+
+### Sanitize a string manually
+
+```csharp
+using SimpleSeleniumSupport.AI.Sanitization;
+
+string raw = "user=john@example.com password=s3cr3t Bearer eyJhbGci... path=C:\\Users\\john\\";
+string clean = PromptSanitizer.Sanitize(raw);
+// → "user=[REDACTED_EMAIL] password=[REDACTED_PASSWORD] Bearer [REDACTED_TOKEN] path=[REDACTED_PATH]\"
+```
+
+### Custom redaction rules
+
+```csharp
+var opts = new SanitizationOptions
+{
+    RedactEmails    = true,
+    RedactPasswords = true,
+    RedactApiTokens = true,
+    RedactFilePaths = false,    // keep paths for debugging
+    PasswordToken   = "***"     // custom replacement token
+};
+// Add a custom regex rule
+opts.CustomRules.Add((new Regex(@"SSN-\d{9}"), "[REDACTED_SSN]"));
+
+string clean = PromptSanitizer.Sanitize(rawPrompt, opts);
+```
+
+### Sanitize DOM JSON
+
+```csharp
+// Blanks the 'text' of password input nodes in DOM snapshots from DomTrimmer
+string cleanDom = PromptSanitizer.SanitizeDomJson(domJson);
 ```
 
 ---
@@ -388,6 +670,63 @@ driver.GetByTestId("submit-btn")
 
 ---
 
+## Resilient Selector Engine
+
+`SelectorPath` / `SelectorNode` / `SelectorEngine` provide a multi-strategy element location system with automatic confidence scoring, telemetry recording, and optional disk persistence. It tries multiple selector strategies (XPath, CSS, etc.) and picks the highest-confidence match.
+
+### Build and use a SelectorPath
+
+```csharp
+using SimpleSeleniumSupport.Selectors.Engine;
+
+// A SelectorNode tries each strategy in order; highest-confidence element wins
+var loginButtonNode = new SelectorNode("loginButton", new ISelectorStrategy[]
+{
+    new SeleniumByStrategy(By.Id("login-btn"),               baseConfidence: 0.95),
+    new SeleniumByStrategy(By.CssSelector("button.login"),   baseConfidence: 0.80),
+    new SeleniumByStrategy(By.XPath("//button[.='Sign in']"), baseConfidence: 0.70)
+});
+
+// A SelectorPath chains multiple nodes (scope → child)
+var formPath = new SelectorPath("loginFormFlow", new[]
+{
+    new SelectorNode("loginForm",   new[] { new SeleniumByStrategy(By.Id("login-form"), 0.99) }),
+    loginButtonNode
+});
+
+// Resolve — walks the chain and returns the highest-confidence element
+IWebElement btn = SelectorEngine.Find(driver, formPath);
+btn.Click();
+
+// Resolve with telemetry flushed to disk after the call
+IWebElement btn2 = SelectorEngine.Find(driver, formPath, persist: true);
+```
+
+### Confidence scoring
+
+Confidence is computed per-element: `strategy.BaseConfidence + 0.1 (if Displayed) + 0.05 (if Enabled)`, capped at 1.0. Elements are ranked descending; the best candidate is returned.
+
+### Telemetry
+
+```csharp
+// Read all recorded events (PathId, Success, Confidence)
+var events = SelectorTelemetry.Snapshot();
+foreach (var ev in events)
+    Console.WriteLine(ev);
+
+// Clear after each test
+SelectorTelemetry.Clear();
+```
+
+### Persistence
+
+```csharp
+// Change the output directory for selector history JSON files
+SelectorPersistence.OutputDirectory = "selector-history";
+```
+
+---
+
 ## Visual Regression Testing
 
 Compare screenshots pixel-by-pixel using SSIM + edge detection. Generates heatmaps and side-by-side diff images.
@@ -478,7 +817,7 @@ var options = new ImageComparisonOptions
 var result = ImageComparator.Compare(baselineBytes, actualBytes, options);
 
 // Paths to generated images (null if unchanged/not saved)
-Console.WriteLine($"Heatmap:  {result.HeatmapPath}");
+Console.WriteLine($"Heatmap:    {result.HeatmapPath}");
 Console.WriteLine($"SideBySide: {result.DiffImagePath}");
 ```
 
@@ -521,10 +860,10 @@ AUTO_BASELINE=1 dotnet test
 ```csharp
 var options = new ImageComparisonOptions
 {
-    Threshold = 95.0,
-    EnableAI  = true,              // adds AI reasoning to the result
-    Provider  = "ollama",
-    OllamaModel = "llava"          // use a vision-capable model
+    Threshold   = 95.0,
+    EnableAI    = true,              // adds AI reasoning to the result
+    Provider    = "ollama",
+    OllamaModel = "llava"            // use a vision-capable model
 };
 
 var result = ImageComparator.Compare(baselineBytes, actualBytes, options);
@@ -574,11 +913,257 @@ HtmlGridJsReportExporter.ExportToHtml(rows, "Reports/visual-grid.html");
 
 ---
 
+## OCR Text Extraction
+
+Extract text from screenshots or specific page regions using Tesseract OCR. Useful for validating text rendered as images (canvas, SVG, custom fonts, CAPTCHAs).
+
+### Prerequisites
+
+Install Tesseract and download a language pack:
+
+```bash
+# Windows (via winget)
+winget install UB-Mannheim.TesseractOCR
+
+# macOS
+brew install tesseract
+
+# Ubuntu / Debian
+sudo apt install tesseract-ocr
+
+# Download English tessdata to your project tessdata/ folder
+# https://github.com/tesseract-ocr/tessdata
+```
+
+Set the path once:
+
+```csharp
+SimpleSeleniumSupportDefaults.OcrTessdataPath = "tessdata";  // relative to working dir
+SimpleSeleniumSupportDefaults.OcrLanguage     = "eng";
+```
+
+### Extract text from full page screenshot
+
+```csharp
+// Takes a screenshot and runs OCR over the whole image
+string pageText = driver.GetScreenshotText();
+Assert.That(pageText, Does.Contain("Welcome"));
+```
+
+### Extract text from a region
+
+```csharp
+using System.Drawing;
+
+// OCR only the header area (0,0 → 1280×80)
+string headerText = driver.GetRegionText(
+    new Rectangle(0, 0, 1280, 80),
+    new OcrOptions { Language = "eng", PageSegMode = 7 }  // PSM 7 = single text line
+);
+Console.WriteLine($"Header: {headerText}");
+```
+
+### Extract text from an element
+
+```csharp
+// Crop the screenshot to the element bounding box and OCR it
+var priceTag = driver.GetByTestId("product-price");
+string priceText = priceTag.GetElementText(driver);
+Assert.That(priceText, Does.Match(@"\$\d+\.\d{2}"));
+```
+
+### Assert element text via OCR
+
+```csharp
+// Throws InvalidOperationException when text is not found
+var badge = driver.GetByTestId("status-badge");
+badge.AssertTextContains(driver, "Active");
+
+// Pattern match
+badge.AssertTextMatches(driver, new Regex(@"Active|Pending"));
+```
+
+### OcrOptions reference
+
+```csharp
+var opts = new OcrOptions
+{
+    Language           = "eng",     // Tesseract language pack
+    PageSegMode        = 3,         // 3=auto, 6=block, 7=line, 8=word, 10=char, 11=sparse
+    WhitelistChars     = "0123456789",  // restrict to digits (e.g. for OTP fields)
+    TessdataPath       = "tessdata",
+    NormalizeWhitespace = true      // collapse whitespace in returned text
+};
+```
+
+---
+
+## Web Performance Monitoring
+
+Collect Navigation Timing, Paint Timing, and Core Web Vitals from the browser and evaluate them against a `PerformanceBudget`.
+
+### Collect metrics
+
+```csharp
+driver.Navigate().GoToUrl("https://example.com");
+
+PerformanceResult perf = driver.CollectPerformanceMetrics();
+
+Console.WriteLine($"FCP:       {perf.FirstContentfulPaintMs:F0} ms");
+Console.WriteLine($"LCP:       {perf.LargestContentfulPaintMs:F0} ms");
+Console.WriteLine($"DOMLoaded: {perf.DomContentLoadedMs:F0} ms");
+Console.WriteLine($"FullLoad:  {perf.FullPageLoadMs:F0} ms");
+Console.WriteLine($"TTFB:      {perf.ServerResponseMs:F0} ms");
+Console.WriteLine($"DNS:       {perf.DnsLookupMs:F0} ms");
+```
+
+### Evaluate against a budget
+
+```csharp
+var budget = new PerformanceBudget
+{
+    MaxFirstContentfulPaintMs   = 1_800,
+    MaxLargestContentfulPaintMs = 2_500,
+    MaxFullPageLoadMs           = 5_000,
+    MaxServerResponseMs         = 600
+};
+
+PerformanceResult perf = driver.CollectPerformanceMetrics(budget);
+
+if (!perf.BudgetPassed)
+{
+    foreach (var violation in perf.BudgetViolations)
+        Console.WriteLine($"Budget violated: {violation}");
+}
+
+Assert.IsTrue(perf.BudgetPassed, "Page load exceeded performance budget");
+```
+
+### Assert budget (throws on violation)
+
+```csharp
+// Throws PerformanceBudgetException with violation details if any threshold is exceeded
+driver.AssertPerformanceBudget(PerformanceBudget.GoogleGoodThresholds());
+```
+
+### Google's "Good" thresholds preset
+
+```csharp
+// Pre-configured to Google Core Web Vitals "Good" category thresholds
+var budget = PerformanceBudget.GoogleGoodThresholds();
+// FCP ≤ 1800 ms, LCP ≤ 2500 ms, DOM ≤ 3000 ms, Full load ≤ 5000 ms, TTFB ≤ 600 ms
+```
+
+### Async variant
+
+```csharp
+PerformanceResult perf = await driver.CollectPerformanceMetricsAsync(budget);
+```
+
+---
+
+## Screenshot Annotation
+
+Draw failure overlays onto screenshots — red top banner with the exception message, grey info bar with test name and timestamp, and optional element highlight box. Uses `System.Drawing.Common` (already a library dependency; no extra NuGet needed).
+
+### Standard failure annotation
+
+```csharp
+byte[] rawPng = ((ITakesScreenshot)driver).GetScreenshot().AsByteArray;
+
+byte[] annotated = ScreenshotAnnotator.AnnotateFailure(
+    rawPng,
+    failureMessage: "ElementClickInterceptedException: element not interactable",
+    testName:       "CheckoutFlow_PaymentStep");
+
+File.WriteAllBytes("Artifacts/checkout_fail_annotated.png", annotated);
+```
+
+### Custom annotation
+
+```csharp
+using System.Drawing;
+
+byte[] annotated = ScreenshotAnnotator.Annotate(rawPng, new AnnotationOptions
+{
+    TopBanner    = "FAILURE: Button not found",
+    BottomBanner = "Test: LoginFlow | Build: CI-4221",
+    AddTimestamp = true,
+
+    // Highlight the failing element's bounding box
+    HighlightRegion = new Rectangle(x: 320, y: 200, width: 150, height: 40),
+    HighlightColor  = Color.Red,
+    HighlightWidth  = 3,
+
+    BannerColor = Color.FromArgb(200, 220, 30, 30),
+    TextColor   = Color.White,
+    FontSize    = 13f
+});
+```
+
+### Auto-annotate on failure (global toggle)
+
+```csharp
+// When true, FailureDiagnostics.SaveDiagnostics automatically annotates screenshots
+SimpleSeleniumSupportDefaults.AnnotateScreenshotsOnFailure = true;
+```
+
+---
+
+## Accessibility Auditing
+
+`AxeRunOptions` and `AxeResult` provide the data model for axe-core accessibility audits. Use `AxeRunOptions` to configure which WCAG rules to evaluate.
+
+### AxeRunOptions reference
+
+```csharp
+var options = new AxeRunOptions
+{
+    // Limit to specific WCAG conformance levels
+    Tags          = new[] { "wcag2a", "wcag2aa" },
+
+    // Or run only specific rules by ID
+    RunOnly       = new[] { "color-contrast", "image-alt", "label" },
+
+    // Disable specific rules
+    DisabledRules = new[] { "region" },
+
+    // Scope to a CSS selector instead of the full page
+    Scope         = "#main-content",
+
+    // Minimum impact to report: minor | moderate | serious | critical
+    MinImpact     = "serious",
+
+    // Throw AxeAccessibilityException when violations are found
+    ThrowOnFail   = true,
+
+    // How to inject axe-core: EmbeddedResource (default) | Cdn | AlreadyLoaded
+    InjectionMode = AxeInjectionMode.EmbeddedResource,
+    TimeoutMs     = 30_000
+};
+```
+
+### AxeResult properties
+
+```csharp
+// AxeResult is populated by your axe runner
+AxeResult result = /* ... your axe integration ... */;
+
+Console.WriteLine($"URL:          {result.Url}");
+Console.WriteLine($"Violations:   {result.ViolationCount}");
+Console.WriteLine($"Passed rules: {result.PassedRules.Count}");
+Console.WriteLine($"Passed:       {result.Passed}");
+
+foreach (var v in result.Violations)
+    Console.WriteLine($"[{v.Impact.ToUpperInvariant()}] {v.Id}: {v.Description} " +
+                      $"({v.TargetSelectors.Count} element(s)) — {v.HelpUrl}");
+```
+
+---
+
 ## Video Recording
 
-Capture test execution as an MP4 video — works in **headless and headed** Chrome, Edge, and Firefox,
-locally and on Selenium Grid. No OS-level display capture is used; frames are taken with
-`ITakesScreenshot.GetScreenshot()` and encoded in real-time by FFmpeg.
+Capture test execution as an MP4 video — works in **headless and headed** Chrome, Edge, and Firefox, locally and on Selenium Grid. No OS-level display capture is used; frames are taken with `ITakesScreenshot.GetScreenshot()` and encoded in real-time by FFmpeg.
 
 ### Prerequisites
 
@@ -692,9 +1277,7 @@ string? videoPath = await recorder.DownloadVideoAsync("CheckoutFlow");
 result.ScreencastPath = videoPath;
 ```
 
-`DownloadVideoAsync` polls `GET {hub}/session/{sessionId}/video` with linear back-off
-(2 s, 4 s, 6 s … up to 30 s per attempt) until the file is available or the timeout elapses.
-Returns `null` if the video is still unavailable after all retries.
+`DownloadVideoAsync` polls `GET {hub}/session/{sessionId}/video` with linear back-off (2 s, 4 s, 6 s … up to 30 s per attempt) until the file is available or the timeout elapses.
 
 ### Integrate with NUnit TearDown
 
@@ -731,7 +1314,8 @@ Save a full set of failure artifacts in one call:
 
 ```csharp
 // Saves to: Diagnostics/failure_<timestamp>/
-//   screenshot.png
+//   screenshot.png              (raw)
+//   screenshot_annotated.png    (red banner overlay — when AnnotateScreenshotsOnFailure=true)
 //   page.html
 //   console_logs.txt
 //   network_info.xlsx
@@ -827,8 +1411,7 @@ Console.WriteLine($"Report: {folder}\\index.html");
 
 ### Single-file HTML (`ExportSingleFile`)
 
-Produces one `.html` file with `data.json` and `manifest.json` embedded inline — no external dependencies.
-Open directly from disk, attach to a CI e-mail, or drag into a browser.
+Produces one `.html` file with `data.json` and `manifest.json` embedded inline — no external dependencies. Open directly from disk, attach to a CI e-mail, or drag into a browser.
 
 > For very large result sets (5 000+ rows) the file size can exceed several MB. Use `Export()` in those cases.
 
@@ -837,33 +1420,19 @@ string htmlFile = TestRunReportExporter.ExportSingleFile(
     results:       results,
     outFolderRoot: "Reports",
     reportName:    "Regression Suite — Sprint 42");
-
-Console.WriteLine($"Report: {htmlFile}");
 ```
 
 ### Excel report (`ExportToExcel`)
 
-One row per test result. Colour-coded Status column (green / red / amber / grey).
-Columns: # · Run · Test Name · Suite · Full Name · Category · Tags · Status · Duration (ms) ·
-Start Time · Browser · Environment · Machine · Exception Type · Exception Message ·
-Stack Trace · Assert Message · Skip Reason · Screenshot · Screencast · Diagnostics Folder ·
-Network HAR · Network Excel · AI Analysis · Custom Properties.
+One row per test result. Colour-coded Status column (green / red / amber / grey). Columns: # · Run · Test Name · Suite · Full Name · Category · Tags · Status · Duration (ms) · Start Time · Browser · Environment · Machine · Exception Type · Exception Message · Stack Trace · Assert Message · Skip Reason · Screenshot · Screencast · Diagnostics Folder · Network HAR · Network Excel · AI Analysis · **AI Classification** · **AI Confidence** · Custom Properties.
+
+`AI Classification` is colour-coded (Rose = `ProductIssue`, Yellow = `TestIssue`, Orange = `Flaky`, Lavender = `Infrastructure`, Grey = `Uncertain`) matching the HTML report badges exactly. These columns are populated when `TestFailureAnalyzer` (or `AnalyzeFailuresAsync`) is run before exporting.
 
 ```csharp
 string xlsxFile = TestRunReportExporter.ExportToExcel(
     results:       results,
     outFolderRoot: "Reports",
     reportName:    "Regression Suite — Sprint 42");
-
-Console.WriteLine($"Excel: {xlsxFile}");
-```
-
-To export all three at once:
-
-```csharp
-string folder   = TestRunReportExporter.Export(          results, "Reports", "Sprint 42");
-string htmlFile = TestRunReportExporter.ExportSingleFile(results, "Reports", "Sprint 42");
-string xlsxFile = TestRunReportExporter.ExportToExcel(   results, "Reports", "Sprint 42");
 ```
 
 ### TestResult model
@@ -876,32 +1445,32 @@ using SimpleSeleniumSupport.Reporting;
 // ── Minimal (pass) ─────────────────────────────────────────────────────
 var passed = new TestResult
 {
-    TestName  = "LoginFlow_WithValidCredentials",
-    TestSuite = "AuthTests",
-    Status    = TestStatus.Pass,
-    DurationMs = 1240,
-    Browser   = "Chrome 124",
+    TestName    = "LoginFlow_WithValidCredentials",
+    TestSuite   = "AuthTests",
+    Status      = TestStatus.Pass,
+    DurationMs  = 1240,
+    Browser     = "Chrome 124",
     Environment = "QA"
 };
 
 // ── From an exception (fail / error) ───────────────────────────────────
 var failed = new TestResult
 {
-    TestName  = "CheckoutFlow_PaymentDeclined",
-    TestSuite = "CheckoutTests",
-    Category  = "Regression",
-    Tags      = "payment,critical",
-    Browser   = "Firefox 125",
+    TestName    = "CheckoutFlow_PaymentDeclined",
+    TestSuite   = "CheckoutTests",
+    Category    = "Regression",
+    Tags        = "payment,critical",
+    Browser     = "Firefox 125",
     Environment = "Staging",
     MachineName = Environment.MachineName,
 
     // Run label — set when combining multiple runs into one consolidated report
-    RunName = "Firefox 126 — Staging",
+    RunName     = "Firefox 126 — Staging",
 
     // Screenshot / screencast / network artifacts
-    ScreenshotPath = "artifacts/checkout_fail.png",
-    ScreencastPath = "artifacts/checkout_fail.mp4",   // or https:// URL
-    NetworkHarPath = "artifacts/checkout.har",
+    ScreenshotPath   = "artifacts/checkout_fail.png",
+    ScreencastPath   = "artifacts/checkout_fail.mp4",
+    NetworkHarPath   = "artifacts/checkout.har",
     NetworkExcelPath = "artifacts/checkout_network.xlsx",
 
     // AI analysis (populated by AnalyzeAndSuggestFix)
@@ -932,12 +1501,12 @@ var failed = new TestResult
 | **Failure tab** | Exception type+message · assertion detail · collapsible stack trace with **Copy** button |
 | **AI Analysis tab** | Styled panel — `**bold**` rendered, `XPATH_CANDIDATE:` lines highlighted |
 | **Screenshot tab** | Inline image with click-to-zoom lightbox |
-| **Screencast tab** | `<video>` player for `.mp4 / .webm / .ogv / .mov` paths and direct video URLs; clickable link for all other URLs (e.g. Jira, Confluence) |
+| **Screencast tab** | `<video>` player for `.mp4 / .webm / .ogv / .mov`; clickable link for other URLs |
 | **Network tab** | Download HAR / Excel buttons (only visible when paths are set) |
 | **Custom Properties tab** | Key/value table from `TestResult.CustomProperties` |
-| **CSV / JSON export** | Exports the currently filtered row set; includes `runName` column |
-| **Excel export** | `ExportToExcel()` — colour-coded Status, DateTime cells, AutoFilter, freeze-pane |
-| **Single-file HTML** | `ExportSingleFile()` — data embedded inline; shareable without extra files |
+| **CSV / JSON export** | Exports the currently filtered row set |
+| **Excel export** | Colour-coded Status, DateTime cells, AutoFilter, freeze-pane |
+| **Single-file HTML** | Data embedded inline; shareable without extra files |
 | **Keyboard shortcuts** | `/` = focus search · `Esc` = clear search or close lightbox |
 
 ### Integrate with NUnit TearDown
@@ -988,7 +1557,6 @@ public void TearDown()
     }
 
     _results.Add(result);
-
     driver?.Quit();
 }
 
@@ -1004,22 +1572,13 @@ public void ExportReport()
 }
 ```
 
-### Consolidated report — multiple runs in one report
-
-Set `RunName` on each `TestResult` to identify which test run it came from. When any result in the collection has `RunName` set, `Export()` automatically adds:
-
-- **Runs summary bar** — one card per run showing pass/fail counts and a mini progress bar; click a card to filter to that run
-- **Run column** in the grid
-- **Run filter** dropdown in the filter bar
-- **Run breakdown** in `manifest.json`
+### Cross-run consolidated report via RunName
 
 ```csharp
-// ── Tag results from each run ─────────────────────────────────────────
 foreach (var r in chromeResults)  r.RunName = "Chrome 124";
 foreach (var r in firefoxResults) r.RunName = "Firefox 126";
 foreach (var r in edgeResults)    r.RunName = "Edge 124";
 
-// ── One consolidated report ───────────────────────────────────────────
 var allResults = chromeResults.Concat(firefoxResults).Concat(edgeResults).ToList();
 string folder = TestRunReportExporter.Export(
     results:       allResults,
@@ -1027,41 +1586,348 @@ string folder = TestRunReportExporter.Export(
     reportName:    "Cross-Browser Suite — Sprint 42");
 ```
 
-To export **both** an individual report per run **and** a consolidated one:
+---
+
+## Parallel Test Reporting (TestResultCollector)
+
+`TestResultCollector` is a thread-safe accumulator for parallel test runs where multiple tests execute concurrently and a single report is needed after all tests complete.
+
+### Basic usage (NUnit parallel)
 
 ```csharp
-// Individual run reports (no RunName needed — each is its own Export call)
-TestRunReportExporter.Export(chromeResults,  "Reports", "Chrome Run");
-TestRunReportExporter.Export(firefoxResults, "Reports", "Firefox Run");
+// Shared fixture-level field — safe to use from all parallel test threads
+private static readonly TestResultCollector _collector = new();
 
-// Consolidated — tag first, then export all together
-foreach (var r in chromeResults)  r.RunName = "Chrome";
-foreach (var r in firefoxResults) r.RunName = "Firefox";
-TestRunReportExporter.Export(
-    chromeResults.Concat(firefoxResults).ToList(),
-    "Reports", "All Browsers — Consolidated");
+[TearDown]
+public void TearDown()
+{
+    // Called concurrently from parallel tests — fully thread-safe
+    _collector.Add(new TestResult
+    {
+        TestName  = TestContext.CurrentContext.Test.Name,
+        Status    = TestStatus.Pass,
+        // ...
+    });
+}
+
+[OneTimeTearDown]
+public static void ExportAll()
+{
+    _collector.Export("TestReports", "My Suite");
+    _collector.ExportSingleFile("TestReports", "My Suite");
+    _collector.ExportToExcel("TestReports", "My Suite");
+
+    // Or export all three at once:
+    _collector.ExportAll("TestReports", "My Suite");
+}
 ```
 
-> **Tip — cross-session / cross-job consolidation:** when each test run writes its own report file (different process, different CI job, different machine), use [`ConsolidatedReportBuilder`](#consolidated-report-builder) to scan the output folder and merge all reports automatically — no need to share an in-memory `List<TestResult>`.
-
-### Screencast path guidance
-
-The `ScreencastPath` property accepts any of:
+### Process-wide singleton
 
 ```csharp
-// Local video file — rendered as <video> player in the report
-result.ScreencastPath = @"C:\recordings\test-12345.mp4";
-result.ScreencastPath = "recordings/test-12345.webm";
+// Access the shared singleton from anywhere in the process
+TestResultCollector.Shared.Add(result);
 
-// Remote video URL — also rendered as <video> player
-result.ScreencastPath = "https://cdn.example.com/recordings/test-12345.mp4";
-
-// Non-video URL (Jira, Confluence, Selenium Grid, etc.) — rendered as clickable link
-result.ScreencastPath = "https://jira.example.com/browse/PROJ-456";
-result.ScreencastPath = "https://grid.example.com/session/abc123/video";
+// Reset before each suite run
+TestResultCollector.ResetShared();
 ```
 
-Supported video extensions: `.mp4`, `.webm`, `.ogv`, `.ogg`, `.mov`.
+### AddRange and Count
+
+```csharp
+_collector.AddRange(batchResults);
+Console.WriteLine($"Collected {_collector.Count} results so far");
+```
+
+### Analyze failures with AI before exporting
+
+Call `AnalyzeFailuresAsync()` (or its synchronous wrapper `AnalyzeFailures()`) **before** any `Export*` call. It groups failed tests, sends them to the AI provider, and writes `AiClassification`, `AiConfidence`, and `AiAnalysis` back onto each failing `TestResult` so every exported format automatically includes the classification.
+
+```csharp
+[OneTimeTearDown]
+public static async Task ExportAll()
+{
+    // Step 1: classify failures — mutates TestResult.AiClassification on all Fail/Error results
+    await _collector.AnalyzeFailuresAsync(new FailureAnalysisOptions
+    {
+        Grouping       = FailureGroupingStrategy.PerClass,  // one AI call per test class
+        MaxParallelism = 3                                  // run 3 groups concurrently
+    });
+
+    // Step 2: export — AI columns are already populated in all output formats
+    _collector.ExportSingleFile("TestReports", "My Suite");  // HTML with AI badge column
+    _collector.ExportToExcel("TestReports", "My Suite");     // Excel with AI Classification col
+}
+```
+
+To skip AI analysis and just export:
+
+```csharp
+_collector.ExportAll("TestReports", "My Suite");
+```
+
+#### Fluent chaining
+
+`AnalyzeFailuresAsync` returns `this`, so you can chain export calls:
+
+```csharp
+await (await _collector.AnalyzeFailuresAsync())
+    .ExportSingleFile("TestReports", "My Suite");
+```
+
+### Export to CI formats
+
+```csharp
+// Export JUnit XML
+_collector.ExportToJUnit("TestReports/junit-results.xml", "My Suite");
+
+// Export NUnit 3 XML
+_collector.ExportToNUnitXml("TestReports/nunit-results.xml", "My Suite");
+
+// Export TRX (Azure DevOps)
+_collector.ExportToTrx("TestReports/results.trx", "My Suite");
+```
+
+---
+
+## CI / Format Export
+
+Export test results to standard CI-compatible formats that integrate with Jenkins, GitLab CI, GitHub Actions, Azure DevOps, and TeamCity.
+
+### JUnit XML (Jenkins, GitLab CI, GitHub Actions)
+
+```csharp
+using SimpleSeleniumSupport.CiExport;
+
+JUnitXmlExporter.Export(
+    results:    results,
+    outputPath: "TestReports/junit-results.xml",
+    suiteName:  "Regression Suite");
+```
+
+The output is JUnit 4 Surefire format: `<testsuites>` → `<testsuite>` (grouped by `TestSuite`) → `<testcase>`. Failures include `<failure>` elements with message, type, and stack trace. Skipped tests emit `<skipped>`. AI analysis is written to `<system-out>`.
+
+### NUnit 3 XML (Azure DevOps, TeamCity)
+
+```csharp
+NUnitXmlExporter.Export(
+    results:    results,
+    outputPath: "TestReports/nunit-results.xml",
+    runName:    "Regression Suite");
+```
+
+### TRX (Azure DevOps native format)
+
+```csharp
+TrxExporter.Export(
+    results:    results,
+    outputPath: "TestReports/results.trx",
+    runName:    "Regression Suite");
+```
+
+### Allure JSON (Allure Report / Allure TestOps)
+
+```csharp
+using SimpleSeleniumSupport.Notifications;
+
+// Writes {uuid}-result.json files to the allure-results folder
+AllureJsonExporter.Export(results, outputDirectory: "allure-results");
+```
+
+Then run `allure generate allure-results --clean` to build the Allure HTML report. Labels (suite, testClass, browser, epic, tag) are mapped automatically from `TestResult` fields.
+
+### Complete CI pipeline example (GitHub Actions)
+
+```yaml
+- name: Run tests
+  run: dotnet test --logger "trx;LogFileName=results.trx"
+
+- name: Export JUnit XML (for GitHub test annotations)
+  run: |
+    dotnet script export.csx
+    # export.csx:
+    # JUnitXmlExporter.Export(results, "TestReports/junit.xml");
+
+- name: Publish test results
+  uses: dorny/test-reporter@v1
+  with:
+    name: Test Results
+    path: TestReports/junit.xml
+    reporter: java-junit
+```
+
+---
+
+## Notifications
+
+Send test-run summaries to Slack, Microsoft Teams, or email after each suite run. All notifiers implement `INotificationProvider` and can be used via extension methods.
+
+### Slack (Incoming Webhook)
+
+```csharp
+using SimpleSeleniumSupport.Notifications;
+
+var slack = new SlackNotifier("https://hooks.slack.com/services/T.../B.../...");
+
+bool sent = await results.NotifyAsync(
+    slack,
+    runName:   "Nightly Regression",
+    reportUrl: "https://ci.example.com/jobs/123/report.html");
+```
+
+The Slack message uses Block Kit: header with status emoji, facts section (Total/Passed/Failed/Pass Rate/Duration/Environment/Branch/Build), and an optional "View Report" button.
+
+### Microsoft Teams (Incoming Webhook)
+
+```csharp
+var teams = new TeamsNotifier("https://outlook.office.com/webhook/.../IncomingWebhook/...");
+
+bool sent = await results.NotifyAsync(
+    teams,
+    runName:   "Nightly Regression",
+    reportUrl: "https://ci.example.com/report.html");
+```
+
+The Teams message sends an Adaptive Card (v1.5) with a FactSet and an optional "View Report" action.
+
+### SMTP Email
+
+```csharp
+var email = new SmtpEmailNotifier(new SmtpEmailConfig
+{
+    Host       = "smtp.example.com",
+    Port       = 587,
+    UseSsl     = true,
+    Username   = "ci@example.com",
+    Password   = Environment.GetEnvironmentVariable("SMTP_PASS"),
+    From       = "ci@example.com",
+    To         = "team@example.com, qa-lead@example.com",
+    Subject    = "Test Run: [[RUN_NAME]] — [[STATUS]]"
+});
+
+await results.NotifyAsync(email, runName: "Nightly Regression");
+```
+
+### Notify multiple channels in parallel
+
+```csharp
+var providers = new INotificationProvider[] { slack, teams, email };
+
+var outcomes = await results.NotifyAllAsync(
+    providers,
+    runName:   "Nightly Regression",
+    reportUrl: "https://ci.example.com/report.html");
+
+foreach (var (channelId, success) in outcomes)
+    Console.WriteLine($"{channelId}: {(success ? "sent" : "failed")}");
+```
+
+### NotificationPayload — extra context fields
+
+```csharp
+// Populate environment/branch/build for richer notification messages
+var payload = new NotificationPayload
+{
+    RunName     = "Nightly Regression",
+    Environment = "Staging",
+    Branch      = "release/2.4.0",
+    BuildNumber = Environment.GetEnvironmentVariable("BUILD_NUMBER"),
+    ReportUrl   = "https://ci.example.com/report.html",
+    // CustomFields appear in templates that support them
+    CustomFields = { ["DeployTarget"] = "EU-West" }
+};
+
+await slack.SendAsync(payload);
+```
+
+---
+
+## Analytics & Flakiness Detection
+
+Track test results across runs in a JSON history file, compute per-test flakiness scores, and export an interactive analytics dashboard with trend charts.
+
+### Append a run to history
+
+```csharp
+using SimpleSeleniumSupport.Analytics;
+
+// Called in OneTimeTearDown after tests complete
+HistoryStore.Append(results, runName: "Nightly — 2025-03-20");
+```
+
+Configure where history is stored:
+
+```csharp
+SimpleSeleniumSupportDefaults.AnalyticsEnabled          = true;
+SimpleSeleniumSupportDefaults.AnalyticsHistoryDirectory = "TestReports/history";
+SimpleSeleniumSupportDefaults.AnalyticsMaxRunsKept      = 50;   // prune older runs
+```
+
+### Load and inspect history
+
+```csharp
+List<TestRunRecord> history = HistoryStore.Load();
+Console.WriteLine($"Runs in history: {history.Count}");
+
+foreach (var run in history.OrderByDescending(r => r.Timestamp))
+    Console.WriteLine($"{run.Timestamp:g}  {run.RunName}  " +
+                      $"PassRate={run.Statistics.PassRate:F1}%  " +
+                      $"Tests={run.Statistics.TotalTests}");
+```
+
+### Compute flakiness scores
+
+```csharp
+FlakinessReport report = FlakinessAnalyzer.Analyse(history, minimumRuns: 3);
+
+Console.WriteLine($"Runs analysed: {report.RunsAnalysed}");
+Console.WriteLine($"Flaky tests (>20%): {report.FlakyTests.Count(f => f.FlakinessScore > 0.2)}");
+
+foreach (var ft in report.FlakyTests.Take(10))
+    Console.WriteLine($"{ft.TestName,-50}  score={ft.FlakinessScore:P0}  " +
+                      $"fail={ft.FailCount}/{ft.TotalRuns}  " +
+                      $"recent=[{string.Join(",", ft.RecentStatuses)}]");
+```
+
+### Export the analytics dashboard
+
+```csharp
+AnalyticsDashboardExporter.Export(
+    history,
+    outputPath:     "TestReports/analytics.html",
+    dashboardTitle: "Test Analytics — My Suite");
+
+Console.WriteLine("Dashboard: TestReports/analytics.html");
+```
+
+The HTML dashboard includes four Chart.js charts:
+- **Pass Rate Trend** — line chart across runs
+- **Duration Trend** — Median + P95 ms per run
+- **Top Flaky Tests** — horizontal bar chart (top 10 by flakiness score)
+- **Latest Run Status Distribution** — doughnut chart (Passed / Failed / Skipped)
+
+### FlakyTest properties
+
+| Property | Description |
+|----------|-------------|
+| `TestName` | Short test name |
+| `FullName` | Full qualified name |
+| `FlakinessScore` | 0.0 = always consistent, 1.0 = alternates pass/fail every run |
+| `PassCount` / `FailCount` | Absolute counts |
+| `TotalRuns` | Total runs analysed for this test |
+| `RecentStatuses` | Status string for last 10 runs (oldest → newest) |
+
+### RunStatistics properties
+
+| Property | Description |
+|----------|-------------|
+| `TotalTests` | Test count |
+| `Passed` / `Failed` / `Skipped` | Absolute counts |
+| `PassRate` | 0.0–100.0 % |
+| `MinDurationMs` / `MaxDurationMs` | Fastest and slowest test |
+| `MedianDurationMs` | P50 duration |
+| `P95DurationMs` | P95 duration |
+| `TotalDurationMs` | Sum of all durations |
 
 ---
 
@@ -1078,19 +1944,15 @@ This is the right tool when different CI jobs, machines, or test sessions each w
 | **Folder-based** (`Export()`) | `data.json` present with a sibling `manifest.json` |
 | **Single-file HTML** (`ExportSingleFile()`) | File contains `<meta name="generator" content="SimpleSeleniumSupport">` |
 
-`index.html` files are always skipped. HTML files inside a folder that already yielded a folder-based report are also skipped (they are `index.html` of that report).
-
-The `RunName` on every merged result is set to the originating report's name when the original result didn't already carry one — so the consolidated report's Run summary bar and Run filter dropdown identify each source.
+`index.html` files are always skipped.
 
 ### Produce a consolidated folder report
 
 ```csharp
-// Point at the folder that contains your individual run reports.
-// Both folder-based and single-file HTML sources are found automatically.
 string consolidated = ConsolidatedReportBuilder.Export(
     rootFolder:   "Reports",
     outputFolder: "Reports",
-    reportName:   "All Runs — Consolidated");   // optional; defaults to "Consolidated Report (N runs)"
+    reportName:   "All Runs — Consolidated");
 
 Console.WriteLine($"Consolidated report: {consolidated}\\index.html");
 ```
@@ -1105,8 +1967,6 @@ string htmlFile = ConsolidatedReportBuilder.ExportSingleFile(
 ```
 
 ### Discover without exporting
-
-Inspect which reports were found before deciding what to do with them:
 
 ```csharp
 IReadOnlyList<DiscoveredReport> found = ConsolidatedReportBuilder.Discover("Reports");
@@ -1125,20 +1985,52 @@ foreach (var r in found)
 | `TestCount` | `int` | Number of test results in that source |
 | `Results` | `IReadOnlyList<TestResult>` | Fully deserialized `TestResult` objects |
 
-### Parameters
+### Produce a consolidated report with AI failure classification
 
-All three methods share the same signature shape:
+`AnalyzeAndExportSingleFileAsync` and `AnalyzeAndExportAsync` scan, merge, classify failures with AI, then export — all in one call. The AI provider analyses all failures from every discovered report together using the configured grouping strategy.
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `rootFolder` | — | Root directory to scan (required) |
-| `outputFolder` | — | Directory where the merged report is written (required) |
-| `reportName` | `null` | Display name; defaults to `"Consolidated Report (N runs)"` |
-| `recursive` | `true` | When `true`, searches all subdirectories; `false` = top level only |
+```csharp
+// Single-file HTML — AI classification badges included
+string htmlFile = await ConsolidatedReportBuilder.AnalyzeAndExportSingleFileAsync(
+    rootFolder:      "Reports",
+    outputFolder:    "Reports/consolidated",
+    reportName:      "All Runs — AI Classified",
+    analysisOptions: new FailureAnalysisOptions
+    {
+        Grouping       = FailureGroupingStrategy.PerCategory,
+        MaxParallelism = 5
+    });
+
+// Folder report variant
+string folder = await ConsolidatedReportBuilder.AnalyzeAndExportAsync(
+    rootFolder:   "Reports",
+    outputFolder: "Reports/consolidated",
+    reportName:   "All Runs — AI Classified");
+```
+
+If you need to run analysis separately (e.g. to inspect results before exporting):
+
+```csharp
+// 1. Discover all reports
+var discovered = ConsolidatedReportBuilder.Discover("Reports");
+var allResults = discovered.SelectMany(d => d.Results).ToList();
+
+// 2. Classify failures
+var analyzer = new TestFailureAnalyzer(new FailureAnalysisOptions {
+    Grouping = FailureGroupingStrategy.PerClass });
+await analyzer.AnalyzeAsync(allResults);
+
+// 3. Inspect before exporting
+var productBugs = allResults.Where(r => r.AiClassification == "ProductIssue").ToList();
+Console.WriteLine($"Genuine product bugs found: {productBugs.Count}");
+
+// 4. Export with classification data already populated
+TestRunReportExporter.ExportSingleFile(allResults, "Reports/consolidated", "All Runs");
+```
 
 ### CI pipeline example
 
-Each matrix job writes its own report; a final aggregation step merges them:
+Each matrix job writes its own report; a final step merges them with AI classification:
 
 ```yaml
 jobs:
@@ -1166,6 +2058,47 @@ jobs:
 
 ---
 
+## Structured Logging
+
+Wire a `Microsoft.Extensions.Logging` `ILoggerFactory` to receive structured log output from all SimpleSeleniumSupport internals (AI calls, network events, selector resolutions, video recording, etc.). By default all output is suppressed via `NullLoggerFactory`.
+
+### Console logging (development)
+
+```csharp
+using Microsoft.Extensions.Logging;
+
+SimpleSeleniumSupportDefaults.LoggerFactory = LoggerFactory.Create(builder =>
+    builder
+        .AddConsole()
+        .SetMinimumLevel(LogLevel.Debug));
+```
+
+### NUnit TestContext sink
+
+```csharp
+SimpleSeleniumSupportDefaults.LoggerFactory = LoggerFactory.Create(builder =>
+    builder
+        .AddProvider(new NUnitLoggerProvider())   // any ILoggerProvider targeting test output
+        .SetMinimumLevel(LogLevel.Information));
+```
+
+### Serilog integration
+
+```csharp
+using Serilog;
+using Serilog.Extensions.Logging;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.File("Logs/sss-.txt", rollingInterval: RollingInterval.Day)
+    .MinimumLevel.Debug()
+    .CreateLogger();
+
+SimpleSeleniumSupportDefaults.LoggerFactory =
+    new SerilogLoggerFactory(Log.Logger);
+```
+
+---
+
 ## Requirements
 
 | Requirement | Detail |
@@ -1173,9 +2106,10 @@ jobs:
 | .NET | 8.0+ |
 | Selenium | 4.40+ (`Selenium.WebDriver`, `Selenium.Support`) |
 | Browser | Chrome or Edge (for network capture; DevTools required) |
-| Ollama | [ollama.com](https://ollama.com) — only for AI features |
+| Ollama | [ollama.com](https://ollama.com) — only for AI features with Ollama provider |
 | LLM models | Text: `llama3` · Vision: `llava` (AI image comparison) |
 | FFmpeg | [ffmpeg.org](https://ffmpeg.org/download.html) — only for local video recording |
+| Tesseract | Required for OCR features — download tessdata language packs separately |
 | OS | Windows (System.Drawing.Common is Windows-only) |
 
 ### Ollama setup
@@ -1193,20 +2127,26 @@ ollama pull llava
 
 ---
 
-## Full example — NUnit test class
+## Full Example — NUnit Test Class
 
 ```csharp
 using NUnit.Framework;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using Microsoft.Extensions.Logging;
 using SimpleSeleniumSupport;
 using SimpleSeleniumSupport.AI;
 using SimpleSeleniumSupport.Network;
 using SimpleSeleniumSupport.Image;
+using SimpleSeleniumSupport.OCR;
+using SimpleSeleniumSupport.Performance;
 using SimpleSeleniumSupport.Selectors;
 using SimpleSeleniumSupport.Recording;
 using SimpleSeleniumSupport.Reporting;
 using SimpleSeleniumSupport.Diagnostics;
+using SimpleSeleniumSupport.Notifications;
+using SimpleSeleniumSupport.Analytics;
+using SimpleSeleniumSupport.CiExport;
 using System.Drawing;
 
 [TestFixture]
@@ -1218,15 +2158,33 @@ public class ExampleTests
     private Exception? lastException;
     private DateTime testStart;
 
-    // Shared across all tests in the fixture — exported in OneTimeTearDown
-    private static readonly List<TestResult> Results = new();
+    // Thread-safe accumulator for parallel test runs
+    private static readonly TestResultCollector Collector = new();
 
     [OneTimeSetUp]
     public static void GlobalSetup()
     {
-        SimpleSeleniumSupportDefaults.OllamaModel           = "llama3";
-        SimpleSeleniumSupportDefaults.VisualThreshold       = 95.0;
-        SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds = 10;
+        // ── Logging ───────────────────────────────────────────────────────────
+        SimpleSeleniumSupportDefaults.LoggerFactory = LoggerFactory.Create(b =>
+            b.AddConsole().SetMinimumLevel(LogLevel.Information));
+
+        // ── AI provider ───────────────────────────────────────────────────────
+        // Option A: Ollama (local, free)
+        SimpleSeleniumSupportDefaults.OllamaModel = "llama3";
+
+        // Option B: OpenAI (cloud)
+        // AIProviderRegistry.Use("openai", new AIProviderConfig
+        // {
+        //     ApiKey = Environment.GetEnvironmentVariable("OPENAI_KEY"),
+        //     Model  = "gpt-4o-mini"
+        // });
+
+        // ── Other defaults ────────────────────────────────────────────────────
+        SimpleSeleniumSupportDefaults.VisualThreshold              = 95.0;
+        SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds        = 10;
+        SimpleSeleniumSupportDefaults.AnnotateScreenshotsOnFailure = true;
+        SimpleSeleniumSupportDefaults.AnalyticsEnabled             = true;
+        SimpleSeleniumSupportDefaults.AiSanitizeByDefault          = true;
     }
 
     [SetUp]
@@ -1249,7 +2207,7 @@ public class ExampleTests
     {
         capture.StopMonitoring();
 
-        // ── Build TestResult for this test ─────────────────────────────────
+        // ── Build TestResult ───────────────────────────────────────────────
         var result = new TestResult
         {
             TestName    = TestContext.CurrentContext.Test.Name,
@@ -1264,70 +2222,92 @@ public class ExampleTests
         {
             result.WithException(lastException);
 
-            // Keep video for failures; stop before screenshot so FFmpeg is flushed
+            // Keep video for failures
             recorder?.Stop(discard: false);
             result.ScreencastPath = recorder?.VideoPath;
 
-            // Capture screenshot
+            // Annotated screenshot (red banner)
             Directory.CreateDirectory("Artifacts");
+            var ssBytes = ((ITakesScreenshot)driver).GetScreenshot().AsByteArray;
+            var ssAnnotated = ScreenshotAnnotator.AnnotateFailure(
+                ssBytes, lastException.Message, result.TestName);
             var ssPath = Path.Combine("Artifacts", $"{result.TestName}_{testStart:yyyyMMdd_HHmmss}.png");
-            File.WriteAllBytes(ssPath, ((ITakesScreenshot)driver).GetScreenshot().AsByteArray);
+            File.WriteAllBytes(ssPath, ssAnnotated);
             result.ScreenshotPath = ssPath;
 
-            // Save full failure diagnostics (screenshot + HTML + console + network)
+            // Full diagnostics bundle
             result.DiagnosticsFolder = FailureDiagnostics.SaveDiagnostics(
                 driver, capture: capture, baseFolder: "Diagnostics");
 
-            // Network artifacts
             result.NetworkHarPath   = Path.Combine(result.DiagnosticsFolder, "network_info.har");
             result.NetworkExcelPath = Path.Combine(result.DiagnosticsFolder, "network_info.xlsx");
 
-            // AI analysis
+            // AI failure analysis
             result.AiAnalysis = driver.AnalyzeAndSuggestFix(
-                lastException,
-                testName: result.TestName,
-                capture:  capture);
-
+                lastException, testName: result.TestName, capture: capture);
             TestContext.WriteLine($"[AI] {result.AiAnalysis}");
         }
         else
         {
             result.Status = TestStatus.Pass;
-            recorder?.Stop(discard: true);   // test passed — delete the video
+            recorder?.Stop(discard: true);   // delete video for passing tests
         }
 
         recorder = null;
-        Results.Add(result);
+        Collector.Add(result);
         driver.Quit();
     }
 
     [OneTimeTearDown]
-    public static void ExportReport()
+    public static async Task ExportReports()
     {
-        // ── Individual run report ──────────────────────────────────────────
-        var folder = TestRunReportExporter.Export(
-            results:       Results,
-            outFolderRoot: "Reports",
-            reportName:    "Example Suite");
+        // ── AI failure classification ──────────────────────────────────────
+        // Classify each Fail/Error result before exporting — writes AiClassification,
+        // AiConfidence, and AiAnalysis back onto each TestResult so every export
+        // format (HTML badge column, Excel colour-coded cell) includes the data.
+        await Collector.AnalyzeFailuresAsync(new FailureAnalysisOptions
+        {
+            Grouping             = FailureGroupingStrategy.PerClass,  // group by test class
+            MaxParallelism       = 3,                                  // concurrent AI calls
+            IncludeScreenshot    = true,                               // attach screenshot filename
+            Sanitization         = new SanitizationOptions            // scrub credentials
+            {
+                ScrubPasswords = true,
+                ScrubApiTokens = true,
+                RedactFilePaths = true
+            }
+        });
 
-        Console.WriteLine($"Test report: {folder}\\index.html");
+        // ── HTML report (folder + data.json) ──────────────────────────────
+        var folder = Collector.Export("Reports", "Example Suite");
+        Console.WriteLine($"Report: {folder}\\index.html");
 
-        // ── Consolidated report (merges all reports already in the folder) ─
-        // Call this after every suite has written its own report.
-        // ConsolidatedReportBuilder scans for both folder-based and single-file
-        // HTML reports automatically — no in-memory list sharing required.
-        // var consolidated = ConsolidatedReportBuilder.Export(
-        //     rootFolder:   "Reports",
-        //     outputFolder: "Reports",
-        //     reportName:   "All Runs — Consolidated");
-        // Console.WriteLine($"Consolidated: {consolidated}\\index.html");
+        // ── Single-file HTML ───────────────────────────────────────────────
+        Collector.ExportSingleFile("Reports", "Example Suite");
 
-        // ── Network report for the session (optional) ──────────────────────
-        // HtmlExporterSingleWithGridjs.ExportNetworkInfoToSingleHtml(
-        //     combinedTraffic, "Reports", reportName: "Full Session Traffic");
+        // ── Excel ──────────────────────────────────────────────────────────
+        Collector.ExportToExcel("Reports", "Example Suite");
+
+        // ── JUnit XML for GitHub Actions ───────────────────────────────────
+        Collector.ExportToJUnit("TestReports/junit.xml", "Example Suite");
+
+        // ── Analytics history ─────────────────────────────────────────────
+        var results = Collector.Results.ToList();
+        HistoryStore.Append(results, "Example Suite — " + DateTime.UtcNow.ToString("yyyy-MM-dd"));
+        var history = HistoryStore.Load();
+        AnalyticsDashboardExporter.Export(history, "Reports/analytics.html");
+
+        // ── Slack notification ─────────────────────────────────────────────
+        var slackUrl = System.Environment.GetEnvironmentVariable("SLACK_WEBHOOK");
+        if (!string.IsNullOrEmpty(slackUrl))
+        {
+            var slack = new SlackNotifier(slackUrl);
+            await results.NotifyAsync(slack, "Example Suite",
+                reportUrl: $"file://{Path.GetFullPath(folder)}/index.html");
+        }
     }
 
-    // ── Tests ──────────────────────────────────────────────────────────────
+    // ── Tests ───────────────────────────────────────────────────────────────
 
     [Test]
     public void LoginFlow_NetworkAndSelectors()
@@ -1348,7 +2328,6 @@ public class ExampleTests
 
             Assert.AreEqual(200, loginResponse.ResponseStatusCode);
 
-            // Verify UI after login
             var greeting = driver.GetByText("Welcome", new LocatorOptions { ExactMatch = false });
             Assert.IsTrue(greeting.Displayed);
         }
@@ -1361,6 +2340,11 @@ public class ExampleTests
         try
         {
             driver.Navigate().GoToUrl("https://demo.example.com");
+
+            // Performance check
+            var perf = driver.CollectPerformanceMetrics(PerformanceBudget.GoogleGoodThresholds());
+            if (!perf.BudgetPassed)
+                TestContext.WriteLine($"[Perf] violations: {string.Join(", ", perf.BudgetViolations)}");
 
             var shotBytes = ((ITakesScreenshot)driver).GetScreenshot().AsByteArray;
             var shotPath  = Path.Combine("Actuals", "homepage.png");
@@ -1402,11 +2386,28 @@ public class ExampleTests
             searchBox.SendKeys("wireless headphones");
 
             driver.WaitAndFindByAI("search button", timeoutInSeconds: 5).Click();
-
             capture.WaitForRequest("/api/search", timeoutInSeconds: 10);
 
             var products = driver.FindElementsByAI("all product card titles in the results");
             Assert.Greater(products.Count, 0, "No products returned");
+        }
+        catch (Exception ex) { lastException = ex; throw; }
+    }
+
+    [Test]
+    public void PriceTag_OcrValidation()
+    {
+        try
+        {
+            driver.Navigate().GoToUrl("https://demo.example.com/product/123");
+
+            // Extract text from an element rendered as an image
+            var priceEl  = driver.GetByTestId("product-price");
+            string price = priceEl.GetElementText(driver,
+                new OcrOptions { WhitelistChars = "$0123456789." });
+
+            Assert.That(price, Does.Match(@"\$\d+\.\d{2}"),
+                $"OCR price text did not match expected format: '{price}'");
         }
         catch (Exception ex) { lastException = ex; throw; }
     }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace SimpleSeleniumSupport.AI.Providers
 {
@@ -91,7 +92,7 @@ namespace SimpleSeleniumSupport.AI.Providers
                 var root = doc.RootElement;
 
                 if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
-                    return r.GetString()!.Trim();
+                    return StripThinkingTags(r.GetString()!.Trim());
 
                 if (root.TryGetProperty("outputs", out var outputs) &&
                     outputs.ValueKind == JsonValueKind.Array &&
@@ -99,17 +100,22 @@ namespace SimpleSeleniumSupport.AI.Providers
                 {
                     var first = outputs[0];
                     if (first.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
-                        return c.GetString()!.Trim();
+                        return StripThinkingTags(c.GetString()!.Trim());
                     if (first.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
-                        return t.GetString()!.Trim();
+                        return StripThinkingTags(t.GetString()!.Trim());
                 }
 
                 if (root.ValueKind == JsonValueKind.String)
-                    return root.GetString()!.Trim();
+                    return StripThinkingTags(root.GetString()!.Trim());
             }
             catch (JsonException) { /* fall through */ }
-            return body.Trim();
+            return StripThinkingTags(body.Trim());
         }
+
+        // Remove <think>...</think> blocks emitted by reasoning models (Qwen3, QwQ, DeepSeek-R1, etc.)
+        // These thinking tokens appear before the actual structured response and break the block parser.
+        private static string StripThinkingTags(string text) =>
+            Regex.Replace(text, @"<think>[\s\S]*?</think>\s*", "", RegexOptions.IgnoreCase).Trim();
 
         private static AITokenUsage? ParseTokenUsage(string body)
         {

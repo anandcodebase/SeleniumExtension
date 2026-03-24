@@ -168,6 +168,42 @@ namespace SimpleSeleniumSupport
         /// </summary>
         public static int AnalyticsMaxRunsKept { get; set; } = 50;
 
+        // ─── Failure Analysis ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Default grouping strategy for <see cref="AI.TestFailureAnalyzer"/>.
+        /// Determines how failed tests are batched before being sent to the AI provider.
+        /// Default: <see cref="AI.FailureGroupingStrategy.PerClass"/> — failures in the same
+        /// test class are analysed together, balancing cost against analysis precision.
+        /// </summary>
+        public static AI.FailureGroupingStrategy FailureAnalysisGrouping { get; set; } =
+            AI.FailureGroupingStrategy.PerClass;
+
+        /// <summary>
+        /// Maximum characters of exception message + stack trace included per test inside
+        /// an AI failure analysis prompt.  Default: <c>1500</c>.
+        /// </summary>
+        public static int FailureAnalysisMaxStackTraceChars { get; set; } = 1500;
+
+        /// <summary>
+        /// Maximum total characters for a single AI failure analysis group prompt.
+        /// Tests whose context would exceed this budget are summarised and classified as UNCERTAIN.
+        /// Default: <c>8000</c>.
+        /// </summary>
+        public static int FailureAnalysisMaxGroupPromptChars { get; set; } = 8000;
+
+        /// <summary>
+        /// Whether to include the screenshot path reference in AI failure analysis prompts.
+        /// Default: <c>true</c>.
+        /// </summary>
+        public static bool FailureAnalysisIncludeScreenshot { get; set; } = true;
+
+        /// <summary>
+        /// Maximum number of AI calls that run concurrently when analyzing test failures.
+        /// Default: <c>3</c>.
+        /// </summary>
+        public static int FailureAnalysisMaxParallelism { get; set; } = 3;
+
         // ─── Screenshot annotation ────────────────────────────────────────────────
 
         /// <summary>

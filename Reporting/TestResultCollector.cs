@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SimpleSeleniumSupport.Reporting
 {
@@ -156,6 +158,43 @@ namespace SimpleSeleniumSupport.Reporting
             var xlsx    = TestRunReportExporter.ExportToExcel(results, outFolderRoot, reportName, sanitize);
             return (folder, html, xlsx);
         }
+
+        // ── AI Failure Analysis ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Runs AI failure analysis on all collected <see cref="TestStatus.Fail"/> and
+        /// <see cref="TestStatus.Error"/> results, writing the classification back to
+        /// <see cref="TestResult.AiAnalysis"/>, <see cref="TestResult.AiClassification"/>,
+        /// and <see cref="TestResult.AiConfidence"/> so they appear in any subsequent export.
+        /// <para>
+        /// Call this in <c>[OneTimeTearDown]</c> <b>before</b> any <c>Export*</c> method:
+        /// </para>
+        /// <code>
+        /// await _collector.AnalyzeFailuresAsync();
+        /// _collector.ExportSingleFile("TestReports", "Suite Name");
+        /// </code>
+        /// </summary>
+        /// <param name="options">
+        ///   Analysis configuration (grouping strategy, model, token budget, sanitization).
+        ///   <see langword="null"/> applies all <see cref="SimpleSeleniumSupportDefaults"/> values.
+        /// </param>
+        /// <param name="ct">Optional cancellation token.</param>
+        /// <returns>This collector for fluent chaining with <c>Export*</c> calls.</returns>
+        public async Task<TestResultCollector> AnalyzeFailuresAsync(
+            AI.FailureAnalysisOptions? options = null,
+            CancellationToken ct = default)
+        {
+            var analyzer = new AI.TestFailureAnalyzer(options);
+            await analyzer.AnalyzeAsync(_bag, ct).ConfigureAwait(false);
+            return this;
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for <see cref="AnalyzeFailuresAsync"/>.
+        /// Blocks the calling thread until all AI analysis calls complete.
+        /// </summary>
+        public TestResultCollector AnalyzeFailures(AI.FailureAnalysisOptions? options = null)
+            => AnalyzeFailuresAsync(options).GetAwaiter().GetResult();
 
         // ── Shared singleton (optional convenience) ──────────────────────────────
 

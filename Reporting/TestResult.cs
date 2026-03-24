@@ -115,10 +115,27 @@ namespace SimpleSeleniumSupport.Reporting
 
         /// <summary>
         /// AI-generated failure analysis returned by
-        /// <see cref="AI.AISuggestFixExtensions.AnalyzeAndSuggestFix"/>.
+        /// <see cref="AI.AISuggestFixExtensions.AnalyzeAndSuggestFix"/> or
+        /// <see cref="AI.TestFailureAnalyzer"/>.
         /// Supports basic Markdown: **bold**, newlines, XPATH_CANDIDATE: lines.
         /// </summary>
         public string? AiAnalysis { get; set; }
+
+        /// <summary>
+        /// AI-determined failure classification set by <see cref="AI.TestFailureAnalyzer"/>.
+        /// Values: <c>"TestIssue"</c> | <c>"ProductIssue"</c> | <c>"Flaky"</c> |
+        /// <c>"Infrastructure"</c> | <c>"Uncertain"</c>.
+        /// Stored as a string (not enum) for JSON round-trip compatibility across library versions.
+        /// <see langword="null"/> until <see cref="AI.TestFailureAnalyzer"/> has been run.
+        /// </summary>
+        public string? AiClassification { get; set; }
+
+        /// <summary>
+        /// AI confidence level set by <see cref="AI.TestFailureAnalyzer"/>:
+        /// <c>"High"</c> | <c>"Medium"</c> | <c>"Low"</c>.
+        /// <see langword="null"/> until <see cref="AI.TestFailureAnalyzer"/> has been run.
+        /// </summary>
+        public string? AiConfidence { get; set; }
 
         // ── Consolidation ─────────────────────────────────────────────────────
 

@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SimpleSeleniumSupport.Reporting
 {
@@ -72,7 +74,7 @@ namespace SimpleSeleniumSupport.Reporting
             var discovered = ScanReports(rootFolder, recursive, outputFolder);
             var allResults = discovered.SelectMany(d => d.Results).ToList();
             reportName ??= $"Consolidated Report ({discovered.Count} runs)";
-            return TestRunReportExporter.Export(allResults, outputFolder, reportName);
+            return TestRunReportExporter.ExportConsolidated(allResults, outputFolder, reportName);
         }
 
         /// <summary>
@@ -98,7 +100,67 @@ namespace SimpleSeleniumSupport.Reporting
             var discovered = ScanReports(rootFolder, recursive, outputFolder);
             var allResults = discovered.SelectMany(d => d.Results).ToList();
             reportName ??= $"Consolidated Report ({discovered.Count} runs)";
-            return TestRunReportExporter.ExportSingleFile(allResults, outputFolder, reportName);
+            return TestRunReportExporter.ExportSingleFileConsolidated(allResults, outputFolder, reportName);
+        }
+
+        /// <summary>
+        /// Scans <paramref name="rootFolder"/> for all SimpleSeleniumSupport reports,
+        /// runs AI failure analysis on every discovered failed test, merges the results,
+        /// and exports a folder report (<c>index.html</c> + <c>data.json</c> + <c>manifest.json</c>).
+        /// </summary>
+        /// <param name="rootFolder">Root directory to scan for source reports.</param>
+        /// <param name="outputFolder">Directory where the consolidated report folder is created.</param>
+        /// <param name="reportName">Display name. Defaults to <c>"Consolidated Report (N runs)"</c>.</param>
+        /// <param name="recursive">Search all subdirectories when <see langword="true"/> (default).</param>
+        /// <param name="analysisOptions">AI failure analysis configuration. <see langword="null"/> uses defaults.</param>
+        /// <param name="sanitize">Optional sanitization applied to the final export.</param>
+        /// <param name="ct">Optional cancellation token.</param>
+        /// <returns>Absolute path of the generated report folder.</returns>
+        public static async Task<string> AnalyzeAndExportAsync(
+            string rootFolder,
+            string outputFolder,
+            string? reportName = null,
+            bool recursive = true,
+            AI.FailureAnalysisOptions? analysisOptions = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null,
+            CancellationToken ct = default)
+        {
+            var discovered = ScanReports(rootFolder, recursive, outputFolder);
+            var allResults = discovered.SelectMany(d => d.Results).ToList();
+            reportName ??= $"Consolidated Report ({discovered.Count} runs)";
+            var analyzer = new AI.TestFailureAnalyzer(analysisOptions);
+            await analyzer.AnalyzeAsync(allResults, ct).ConfigureAwait(false);
+            return TestRunReportExporter.ExportConsolidated(allResults, outputFolder, reportName);
+        }
+
+        /// <summary>
+        /// Scans <paramref name="rootFolder"/> for all SimpleSeleniumSupport reports,
+        /// runs AI failure analysis on every discovered failed test, merges the results,
+        /// and exports a single self-contained HTML file.
+        /// </summary>
+        /// <param name="rootFolder">Root directory to scan for source reports.</param>
+        /// <param name="outputFolder">Directory where the consolidated .html file is created.</param>
+        /// <param name="reportName">Display name. Defaults to <c>"Consolidated Report (N runs)"</c>.</param>
+        /// <param name="recursive">Search all subdirectories when <see langword="true"/> (default).</param>
+        /// <param name="analysisOptions">AI failure analysis configuration. <see langword="null"/> uses defaults.</param>
+        /// <param name="sanitize">Optional sanitization applied to the final export.</param>
+        /// <param name="ct">Optional cancellation token.</param>
+        /// <returns>Absolute path of the generated .html file.</returns>
+        public static async Task<string> AnalyzeAndExportSingleFileAsync(
+            string rootFolder,
+            string outputFolder,
+            string? reportName = null,
+            bool recursive = true,
+            AI.FailureAnalysisOptions? analysisOptions = null,
+            AI.Sanitization.SanitizationOptions? sanitize = null,
+            CancellationToken ct = default)
+        {
+            var discovered = ScanReports(rootFolder, recursive, outputFolder);
+            var allResults = discovered.SelectMany(d => d.Results).ToList();
+            reportName ??= $"Consolidated Report ({discovered.Count} runs)";
+            var analyzer = new AI.TestFailureAnalyzer(analysisOptions);
+            await analyzer.AnalyzeAsync(allResults, ct).ConfigureAwait(false);
+            return TestRunReportExporter.ExportSingleFileConsolidated(allResults, outputFolder, reportName);
         }
 
         /// <summary>
@@ -124,9 +186,18 @@ namespace SimpleSeleniumSupport.Reporting
             var results  = new List<DiscoveredReport>();
             var skipDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Exclude the output folder so the consolidator never picks up its own output.
+            // Exclude the output folder from directory-level scanning only when it is a
+            // DIFFERENT directory from rootFolder. When they are the same (e.g. "Reports"),
+            // excluding the folder would also skip all source reports in it.
+            // Self-exclusion of consolidated reports is instead handled per-file via the
+            // sss:report-type="consolidated" meta tag and the reportType manifest field.
             if (!string.IsNullOrEmpty(excludeFolder))
-                skipDirs.Add(Path.GetFullPath(excludeFolder));
+            {
+                var fullExclude = Path.GetFullPath(excludeFolder);
+                var fullRoot    = Path.GetFullPath(rootFolder);
+                if (!string.Equals(fullExclude, fullRoot, StringComparison.OrdinalIgnoreCase))
+                    skipDirs.Add(fullExclude);
+            }
 
             // Step 1 — Folder-based reports: locate every data.json that has a sibling manifest.json
             foreach (var dataJsonPath in Directory.EnumerateFiles(rootFolder, "data.json", searchOption))
@@ -169,6 +240,9 @@ namespace SimpleSeleniumSupport.Reporting
             try
             {
                 var manifest   = JsonSerializer.Deserialize<ManifestJson>(File.ReadAllText(manifestPath), JsonOpts)!;
+                // Skip consolidated reports to prevent double-counting on re-scans
+                if (string.Equals(manifest.reportType, "consolidated", StringComparison.OrdinalIgnoreCase))
+                    return null;
                 var reportName = manifest.reportName;
 
                 var rows       = JsonSerializer.Deserialize<List<ReportRow>>(File.ReadAllText(dataJsonPath), JsonOpts) ?? [];
@@ -200,6 +274,11 @@ namespace SimpleSeleniumSupport.Reporting
                 // Must have the generator marker — skip unrelated HTML files
                 if (!html.Contains("<meta name=\"generator\" content=\"SimpleSeleniumSupport\">",
                         StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                // Skip consolidated reports to prevent double-counting on re-scans
+                var reportType = ExtractMetaContent(html, "sss:report-type");
+                if (string.Equals(reportType, "consolidated", StringComparison.OrdinalIgnoreCase))
                     return null;
 
                 var reportName = System.Net.WebUtility.HtmlDecode(
@@ -280,6 +359,8 @@ namespace SimpleSeleniumSupport.Reporting
             NetworkHarPath   = NullIfEmpty(row.networkHar),
             NetworkExcelPath = NullIfEmpty(row.networkExcel),
             AiAnalysis       = NullIfEmpty(row.aiAnalysis),
+            AiClassification = NullIfEmpty(row.aiClassification),
+            AiConfidence     = NullIfEmpty(row.aiConfidence),
             CustomProperties = row.customProps ?? new()
         };
 
@@ -329,14 +410,17 @@ namespace SimpleSeleniumSupport.Reporting
             public string?  diagnostics    { get; set; }   // DiagnosticsFolder
             public string?  networkHar     { get; set; }   // NetworkHarPath
             public string?  networkExcel   { get; set; }   // NetworkExcelPath
-            public string?  aiAnalysis     { get; set; }
+            public string?  aiAnalysis        { get; set; }
+            public string?  aiClassification  { get; set; }
+            public string?  aiConfidence      { get; set; }
             public Dictionary<string, string>? customProps { get; set; }
         }
 
         // Mirrors the shape written to manifest.json
         private sealed class ManifestJson
         {
-            public string reportName { get; set; } = "";
+            public string  reportName  { get; set; } = "";
+            public string? reportType  { get; set; }  // "consolidated" → skip on re-scan
         }
     }
 }
