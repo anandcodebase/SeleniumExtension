@@ -218,6 +218,60 @@ namespace SimpleSeleniumSupport
         /// </summary>
         public static int FailureAnalysisMaxParallelism { get; set; } = 3;
 
+        // ─── Report artifact linking ──────────────────────────────────────────
+
+        /// <summary>
+        /// Controls how artifact paths (screenshots, screencasts, HAR files) are stored
+        /// in HTML reports and turned into clickable links.
+        /// <list type="bullet">
+        ///   <item><description>
+        ///     <see cref="Reporting.ArtifactLinkMode.Local"/> (default) — absolute Windows
+        ///     paths; browser opens via <c>file:///</c>.  Works on the machine that ran
+        ///     the tests.
+        ///   </description></item>
+        ///   <item><description>
+        ///     <see cref="Reporting.ArtifactLinkMode.WebUrl"/> — paths stored relative to
+        ///     <see cref="ReportRootDirectory"/>; browser opens via <see cref="ReportBaseUrl"/>
+        ///     prefix.  Requires IIS / web server with Directory Browsing.
+        ///     Both <see cref="ReportRootDirectory"/> and <see cref="ReportBaseUrl"/> must
+        ///     be set or an <see cref="System.InvalidOperationException"/> is thrown at export time.
+        ///   </description></item>
+        /// </list>
+        /// </summary>
+        public static Reporting.ArtifactLinkMode ArtifactLinkMode { get; set; } =
+            Reporting.ArtifactLinkMode.Local;
+
+        /// <summary>
+        /// Root directory that your web server serves as its web root.
+        /// Required when <see cref="ArtifactLinkMode"/> is
+        /// <see cref="Reporting.ArtifactLinkMode.WebUrl"/>.
+        /// All test artifacts (screenshots, screencasts, HAR files) must be saved inside
+        /// this folder; the report stores paths relative to it.
+        /// <example>
+        /// <code>
+        /// SimpleSeleniumSupportDefaults.ReportRootDirectory = @"D:\wwwroot\";
+        /// // artifact at D:\wwwroot\TestRun-20260326\screenshots\fail.png
+        /// // → stored as TestRun-20260326/screenshots/fail.png
+        /// </code>
+        /// </example>
+        /// </summary>
+        public static string? ReportRootDirectory { get; set; }
+
+        /// <summary>
+        /// Public base URL of the web server hosting the artifact root directory.
+        /// Required when <see cref="ArtifactLinkMode"/> is
+        /// <see cref="Reporting.ArtifactLinkMode.WebUrl"/>.
+        /// Must start with <c>http://</c> or <c>https://</c>. Trailing slash is optional.
+        /// <example>
+        /// <code>
+        /// SimpleSeleniumSupportDefaults.ReportBaseUrl = "https://reports.mycompany.com";
+        /// // relative path TestRun-20260326/screenshots/fail.png
+        /// // → link https://reports.mycompany.com/TestRun-20260326/screenshots/fail.png
+        /// </code>
+        /// </example>
+        /// </summary>
+        public static string? ReportBaseUrl { get; set; }
+
         // ─── Screenshot annotation ────────────────────────────────────────────────
 
         /// <summary>

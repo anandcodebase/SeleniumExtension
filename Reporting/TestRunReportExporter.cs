@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging;
 using SimpleSeleniumSupport.Analytics;
 using SimpleSeleniumSupport.CiExport;
+using SimpleSeleniumSupport.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -28,6 +30,9 @@ namespace SimpleSeleniumSupport.Reporting
     /// </summary>
     public static class TestRunReportExporter
     {
+        private static readonly ILogger _log =
+            LibraryLogger.ForCategory("SimpleSeleniumSupport.Reporting.TestRunReportExporter");
+
         // ── Public API ─────────────────────────────────────────────────────────
 
         /// <summary>
@@ -48,6 +53,7 @@ namespace SimpleSeleniumSupport.Reporting
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
+            ValidateWebUrlMode();
 
             Directory.CreateDirectory(outFolderRoot);
 
@@ -110,6 +116,7 @@ namespace SimpleSeleniumSupport.Reporting
         {
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
+            ValidateWebUrlMode();
 
             Directory.CreateDirectory(outFolderRoot);
 
@@ -154,6 +161,7 @@ namespace SimpleSeleniumSupport.Reporting
             const string reportType = "consolidated";
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
+            ValidateWebUrlMode();
 
             Directory.CreateDirectory(outFolderRoot);
             var safeName     = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
@@ -186,6 +194,7 @@ namespace SimpleSeleniumSupport.Reporting
             const string reportType = "consolidated";
             if (string.IsNullOrWhiteSpace(outFolderRoot))
                 throw new ArgumentNullException(nameof(outFolderRoot));
+            ValidateWebUrlMode();
 
             Directory.CreateDirectory(outFolderRoot);
             var safeName  = string.IsNullOrWhiteSpace(reportName) ? "test-report" : MakeSafeFileName(reportName!);
@@ -353,12 +362,21 @@ namespace SimpleSeleniumSupport.Reporting
         private static string BuildHtml(
             string dataInitScript, string runsJson, string? reportName, string safeName,
             string reportType = "single")
-            => GetTemplate()
+        {
+            // In WebUrl mode inject the configured base URL; Local mode leaves it empty
+            // so toFileUrl() in the browser falls back to the file:/// path.
+            var baseUrl = SimpleSeleniumSupportDefaults.ArtifactLinkMode == ArtifactLinkMode.WebUrl
+                ? (SimpleSeleniumSupportDefaults.ReportBaseUrl ?? "").TrimEnd('/')
+                : "";
+
+            return GetTemplate()
                 .Replace("[[REPORT_NAME]]",      HtmlEnc(reportName ?? safeName))
                 .Replace("[[GEN_TIME]]",          DateTime.UtcNow.ToString("u"))
                 .Replace("[[RUNS_JSON]]",         runsJson)
                 .Replace("[[REPORT_TYPE]]",       reportType)
+                .Replace("[[REPORT_BASE_URL]]",   baseUrl)
                 .Replace("[[DATA_INIT_SCRIPT]]",  dataInitScript);
+        }
 
         private const string FetchInitScript =
             "fetch('data.json')\n" +
@@ -396,11 +414,11 @@ namespace SimpleSeleniumSupport.Reporting
             stackTrace     = r.StackTrace     ?? "",
             assertMsg      = r.AssertMessage  ?? "",
             skipReason     = r.SkipReason     ?? "",
-            screenshot     = AbsPath(r.ScreenshotPath),
-            screencast     = AbsPath(r.ScreencastPath),
-            diagnostics    = AbsPath(r.DiagnosticsFolder),
-            networkHar     = AbsPath(r.NetworkHarPath),
-            networkExcel   = AbsPath(r.NetworkExcelPath),
+            screenshot     = ArtifactPath(r.ScreenshotPath),
+            screencast     = ArtifactPath(r.ScreencastPath),
+            diagnostics    = ArtifactPath(r.DiagnosticsFolder),
+            networkHar     = ArtifactPath(r.NetworkHarPath),
+            networkExcel   = ArtifactPath(r.NetworkExcelPath),
             aiAnalysis       = r.AiAnalysis       ?? "",
             aiClassification = r.AiClassification ?? "",
             aiConfidence     = r.AiConfidence     ?? "",
@@ -409,16 +427,77 @@ namespace SimpleSeleniumSupport.Reporting
 
         // ── Utilities ──────────────────────────────────────────────────────────
 
-        // Converts a relative artifact path to an absolute path so toFileUrl() in the
-        // browser can build a valid file:///D:/... URL. HTTP/HTTPS URLs are returned as-is.
-        private static string AbsPath(string? p)
+        // Resolves an artifact path based on the configured ArtifactLinkMode.
+        //
+        // Local mode  → absolute Windows path   (browser builds file:/// link)
+        // WebUrl mode → path relative to ReportRootDirectory using forward slashes
+        //               (browser prepends REPORT_BASE_URL to form a web URL)
+        //
+        // Paths that are already HTTP/HTTPS/file:// URLs are passed through unchanged.
+        // WebUrl mode: paths outside ReportRootDirectory fall back to absolute with a warning.
+        private static string ArtifactPath(string? p)
         {
             if (string.IsNullOrEmpty(p)) return "";
-            if (p.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+
+            // Already a full URL — pass through unchanged
+            if (p.StartsWith("http://",  StringComparison.OrdinalIgnoreCase) ||
                 p.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                p.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                p.StartsWith("file://",  StringComparison.OrdinalIgnoreCase))
                 return p;
-            return Path.GetFullPath(p);
+
+            var abs = Path.GetFullPath(p);
+
+            if (SimpleSeleniumSupportDefaults.ArtifactLinkMode == ArtifactLinkMode.WebUrl)
+            {
+                var root = SimpleSeleniumSupportDefaults.ReportRootDirectory;
+                if (!string.IsNullOrEmpty(root))
+                {
+                    // Normalize root: ensure trailing separator so the substring is clean
+                    var fullRoot = Path.GetFullPath(root).TrimEnd('\\', '/')
+                                   + Path.DirectorySeparatorChar;
+
+                    if (abs.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+                        return abs.Substring(fullRoot.Length).Replace('\\', '/');
+                }
+
+                // Artifact is outside the configured root — warn and fall back to absolute.
+                // toFileUrl() in the browser will produce a file:// link for this path,
+                // which still works locally but won't be accessible from other machines.
+                _log.LogWarning(
+                    "[Report] Artifact '{Path}' is outside ReportRootDirectory '{Root}'. " +
+                    "Falling back to absolute path. Move the file inside the root directory " +
+                    "or update SimpleSeleniumSupportDefaults.ReportRootDirectory.",
+                    abs, root);
+            }
+
+            return abs;
+        }
+
+        // Validates that all required settings are present when WebUrl mode is active.
+        // Called once at the start of every export method to fail fast with a clear message.
+        private static void ValidateWebUrlMode()
+        {
+            if (SimpleSeleniumSupportDefaults.ArtifactLinkMode != ArtifactLinkMode.WebUrl)
+                return;
+
+            if (string.IsNullOrWhiteSpace(SimpleSeleniumSupportDefaults.ReportRootDirectory))
+                throw new InvalidOperationException(
+                    "SimpleSeleniumSupportDefaults.ReportRootDirectory must be set when " +
+                    "ArtifactLinkMode is WebUrl. Set it to the directory your web server " +
+                    @"serves as its root (e.g. @""D:\wwwroot\"").");
+
+            var baseUrl = SimpleSeleniumSupportDefaults.ReportBaseUrl ?? "";
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException(
+                    "SimpleSeleniumSupportDefaults.ReportBaseUrl must be set when " +
+                    "ArtifactLinkMode is WebUrl. Set it to the public base URL of your " +
+                    "site (e.g. \"https://reports.mycompany.com\").");
+
+            if (!baseUrl.StartsWith("http://",  StringComparison.OrdinalIgnoreCase) &&
+                !baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "SimpleSeleniumSupportDefaults.ReportBaseUrl must start with " +
+                    $"http:// or https://. Got: \"{baseUrl}\"");
         }
 
         private static string HtmlEnc(string s) => System.Net.WebUtility.HtmlEncode(s);
@@ -1234,6 +1313,12 @@ pre.stack-pre {
         // ── JavaScript body (no script tags, no IIFE wrapper) ──────────────────
 
         private static string GetJavaScript() => """
+// ── Artifact link mode ─────────────────────────────────────────────────
+// Injected at export time by TestRunReportExporter.BuildHtml().
+// Empty string = Local mode → toFileUrl() builds file:/// links.
+// Non-empty    = WebUrl mode → toFileUrl() prepends this base URL.
+const REPORT_BASE_URL = '[[REPORT_BASE_URL]]';
+
 // ── State ──────────────────────────────────────────────────────────────
 let ALL_ROWS = [];       // raw data from data.json
 let FILTERED = [];       // after applying filters
@@ -1464,8 +1549,10 @@ function buildAiClassBadge(cls, conf, small){
 function htmlEscape(s){ return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function toFileUrl(p){
   if(!p) return '';
-  if(/^(https?|file):\/\//i.test(p)) return p;
-  return 'file:///' + p.replace(/\\/g, '/');
+  if(/^(https?|file):\/\//i.test(p)) return p;             // already a full URL
+  if(REPORT_BASE_URL)
+    return REPORT_BASE_URL.replace(/\/+$/, '') + '/' + p.replace(/\\/g, '/');
+  return 'file:///' + p.replace(/\\/g, '/');                // Local mode fallback
 }
 
 // ── Detail modal ───────────────────────────────────────────────────────
