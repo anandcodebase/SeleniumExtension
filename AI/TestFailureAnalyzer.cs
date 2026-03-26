@@ -238,10 +238,15 @@ namespace SimpleSeleniumSupport.AI
             if (!string.IsNullOrEmpty(r.StackTrace))
             {
                 var st = Sanitize(r.StackTrace);
+                if (_opts.TrimSystemFrames)
+                    st = TrimSystemFrames(st);
                 if (st.Length > _opts.MaxStackTraceCharsPerTest)
                     st = st.Substring(0, _opts.MaxStackTraceCharsPerTest) + "\n[stack trace truncated]";
-                sb.AppendLine("StackTrace:");
-                sb.AppendLine(st);
+                if (!string.IsNullOrWhiteSpace(st))
+                {
+                    sb.AppendLine("StackTrace:");
+                    sb.AppendLine(st);
+                }
             }
 
             if (_opts.IncludeScreenshot)
@@ -388,6 +393,21 @@ namespace SimpleSeleniumSupport.AI
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
+
+        // Removes stack-trace lines that belong to framework internals, keeping only the
+        // user/library frames where the actual bug lives.
+        private static readonly Regex _systemFrameRegex = new(
+            @"^\s+at\s+(System\.|Microsoft\.|NUnit\.|Xunit\.|MSTest\.|mscorlib\.|netstandard\." +
+            @"|System\.Runtime\.|System\.Reflection\.|System\.Threading\.|System\.Private\.)",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+        private static string TrimSystemFrames(string stackTrace)
+        {
+            var lines  = stackTrace.Split('\n');
+            var kept   = lines.Where(l => !_systemFrameRegex.IsMatch(l)).ToArray();
+            // If trimming removed everything, fall back to original so we don't send blank context.
+            return kept.All(string.IsNullOrWhiteSpace) ? stackTrace : string.Join('\n', kept);
+        }
 
         private string Sanitize(string text)
         {

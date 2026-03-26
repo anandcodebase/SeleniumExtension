@@ -396,11 +396,11 @@ namespace SimpleSeleniumSupport.Reporting
             stackTrace     = r.StackTrace     ?? "",
             assertMsg      = r.AssertMessage  ?? "",
             skipReason     = r.SkipReason     ?? "",
-            screenshot     = r.ScreenshotPath ?? "",
-            screencast     = r.ScreencastPath ?? "",
-            diagnostics    = r.DiagnosticsFolder ?? "",
-            networkHar     = r.NetworkHarPath ?? "",
-            networkExcel   = r.NetworkExcelPath ?? "",
+            screenshot     = AbsPath(r.ScreenshotPath),
+            screencast     = AbsPath(r.ScreencastPath),
+            diagnostics    = AbsPath(r.DiagnosticsFolder),
+            networkHar     = AbsPath(r.NetworkHarPath),
+            networkExcel   = AbsPath(r.NetworkExcelPath),
             aiAnalysis       = r.AiAnalysis       ?? "",
             aiClassification = r.AiClassification ?? "",
             aiConfidence     = r.AiConfidence     ?? "",
@@ -408,6 +408,18 @@ namespace SimpleSeleniumSupport.Reporting
         };
 
         // ── Utilities ──────────────────────────────────────────────────────────
+
+        // Converts a relative artifact path to an absolute path so toFileUrl() in the
+        // browser can build a valid file:///D:/... URL. HTTP/HTTPS URLs are returned as-is.
+        private static string AbsPath(string? p)
+        {
+            if (string.IsNullOrEmpty(p)) return "";
+            if (p.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                p.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                return p;
+            return Path.GetFullPath(p);
+        }
 
         private static string HtmlEnc(string s) => System.Net.WebUtility.HtmlEncode(s);
 

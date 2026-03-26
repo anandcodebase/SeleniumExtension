@@ -72,6 +72,17 @@ namespace SimpleSeleniumSupport.AI
         public Sanitization.SanitizationOptions? Sanitization { get; set; } = new();
 
         /// <summary>
+        /// When <see langword="true"/> (default), stack trace lines that belong to
+        /// framework internals (<c>System.*</c>, <c>Microsoft.*</c>, <c>NUnit.*</c>,
+        /// <c>Xunit.*</c>, <c>MSTest.*</c>, <c>mscorlib</c>) are stripped before the
+        /// stack trace is included in the AI prompt.
+        /// This keeps prompts focused on user/library code and reduces token usage.
+        /// Default: <see cref="SimpleSeleniumSupportDefaults.FailureAnalysisTrimSystemFrames"/>.
+        /// </summary>
+        public bool TrimSystemFrames { get; set; } =
+            SimpleSeleniumSupportDefaults.FailureAnalysisTrimSystemFrames;
+
+        /// <summary>
         /// When <see langword="true"/> (default), analysis results are written back to
         /// <see cref="Reporting.TestResult.AiAnalysis"/>,
         /// <see cref="Reporting.TestResult.AiClassification"/>, and

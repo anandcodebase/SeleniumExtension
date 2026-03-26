@@ -173,17 +173,21 @@ namespace SimpleSeleniumSupport
         /// <summary>
         /// Default grouping strategy for <see cref="AI.TestFailureAnalyzer"/>.
         /// Determines how failed tests are batched before being sent to the AI provider.
-        /// Default: <see cref="AI.FailureGroupingStrategy.PerClass"/> — failures in the same
-        /// test class are analysed together, balancing cost against analysis precision.
+        /// Default: <see cref="AI.FailureGroupingStrategy.PerTest"/> — one AI call per failed
+        /// test keeps prompts small and avoids timeouts with local small models.
+        /// Use <see cref="AI.FailureGroupingStrategy.PerClass"/> to batch by class when using
+        /// a fast cloud provider and you want fewer total API calls.
         /// </summary>
         public static AI.FailureGroupingStrategy FailureAnalysisGrouping { get; set; } =
-            AI.FailureGroupingStrategy.PerClass;
+            AI.FailureGroupingStrategy.PerTest;
 
         /// <summary>
-        /// Maximum characters of exception message + stack trace included per test inside
-        /// an AI failure analysis prompt.  Default: <c>1500</c>.
+        /// Maximum characters of stack trace included per test inside an AI failure analysis
+        /// prompt.  System/framework frames are stripped first (when
+        /// <see cref="FailureAnalysisTrimSystemFrames"/> is <see langword="true"/>), so
+        /// user-code frames usually fit within this budget.  Default: <c>800</c>.
         /// </summary>
-        public static int FailureAnalysisMaxStackTraceChars { get; set; } = 1500;
+        public static int FailureAnalysisMaxStackTraceChars { get; set; } = 800;
 
         /// <summary>
         /// Maximum total characters for a single AI failure analysis group prompt.
@@ -193,10 +197,20 @@ namespace SimpleSeleniumSupport
         public static int FailureAnalysisMaxGroupPromptChars { get; set; } = 8000;
 
         /// <summary>
-        /// Whether to include the screenshot path reference in AI failure analysis prompts.
-        /// Default: <c>true</c>.
+        /// When <see langword="true"/> (default), stack trace lines belonging to
+        /// <c>System.*</c>, <c>Microsoft.*</c>, <c>NUnit.*</c>, <c>Xunit.*</c>,
+        /// <c>MSTest.*</c>, and similar framework internals are removed from the stack trace
+        /// before it is sent to the AI provider.  This keeps prompts focused on user/library
+        /// code and significantly reduces token usage.
         /// </summary>
-        public static bool FailureAnalysisIncludeScreenshot { get; set; } = true;
+        public static bool FailureAnalysisTrimSystemFrames { get; set; } = true;
+
+        /// <summary>
+        /// Whether to include the screenshot file-path reference line in AI failure analysis
+        /// prompts.  Useful only when <see cref="AI.FailureAnalysisOptions.UseVisionModel"/>
+        /// is also enabled; text-only models cannot use the path.  Default: <c>false</c>.
+        /// </summary>
+        public static bool FailureAnalysisIncludeScreenshot { get; set; } = false;
 
         /// <summary>
         /// Maximum number of AI calls that run concurrently when analyzing test failures.
