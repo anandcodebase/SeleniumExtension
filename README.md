@@ -16,25 +16,31 @@ An advanced Selenium WebDriver toolkit for .NET 8+ that adds AI-powered element 
 5. [AI Failure Analysis](#ai-failure-analysis)
 6. [AI Prompt Sanitization](#ai-prompt-sanitization)
 7. [Network Capture & Monitoring](#network-capture--monitoring)
-8. [Playwright-Style Selectors](#playwright-style-selectors)
-9. [Resilient Selector Engine](#resilient-selector-engine)
-10. [Visual Regression Testing](#visual-regression-testing)
-11. [OCR Text Extraction](#ocr-text-extraction)
-12. [Web Performance Monitoring](#web-performance-monitoring)
-13. [Screenshot Annotation](#screenshot-annotation)
-14. [Accessibility Auditing](#accessibility-auditing)
-15. [Video Recording](#video-recording)
-16. [Failure Diagnostics](#failure-diagnostics)
-17. [Network Reporting](#network-reporting)
-18. [Test Run Report](#test-run-report)
-19. [Parallel Test Reporting (TestResultCollector)](#parallel-test-reporting-testresultcollector)
-20. [CI / Format Export](#ci--format-export)
-21. [Notifications](#notifications)
-22. [Analytics & Flakiness Detection](#analytics--flakiness-detection)
-23. [Consolidated Report Builder](#consolidated-report-builder)
-24. [Structured Logging](#structured-logging)
-25. [Requirements](#requirements)
-26. [Full Example — NUnit Test Class](#full-example--nunit-test-class)
+8. [Network Request Routing](#network-request-routing)
+9. [Playwright-Style Selectors](#playwright-style-selectors)
+10. [Locator API](#locator-api)
+11. [FrameLocator (iframe support)](#framelocator-iframe-support)
+12. [Playwright-Style Assertions](#playwright-style-assertions)
+13. [SeleniumPage](#seleniumpage)
+14. [Mouse & Keyboard Input](#mouse--keyboard-input)
+15. [Resilient Selector Engine](#resilient-selector-engine)
+16. [Visual Regression Testing](#visual-regression-testing)
+17. [OCR Text Extraction](#ocr-text-extraction)
+18. [Web Performance Monitoring](#web-performance-monitoring)
+19. [Screenshot Annotation](#screenshot-annotation)
+20. [Accessibility Auditing](#accessibility-auditing)
+21. [Video Recording](#video-recording)
+22. [Failure Diagnostics](#failure-diagnostics)
+23. [Network Reporting](#network-reporting)
+24. [Test Run Report](#test-run-report)
+25. [Parallel Test Reporting (TestResultCollector)](#parallel-test-reporting-testresultcollector)
+26. [CI / Format Export](#ci--format-export)
+27. [Notifications](#notifications)
+28. [Analytics & Flakiness Detection](#analytics--flakiness-detection)
+29. [Consolidated Report Builder](#consolidated-report-builder)
+30. [Structured Logging](#structured-logging)
+31. [Requirements](#requirements)
+32. [Full Example — NUnit Test Class](#full-example--nunit-test-class)
 
 ---
 
@@ -56,9 +62,12 @@ Install-Package SimpleSeleniumSupport
 using SimpleSeleniumSupport;
 using SimpleSeleniumSupport.AI;
 using SimpleSeleniumSupport.AI.Sanitization;
+using SimpleSeleniumSupport.Assertions;
+using SimpleSeleniumSupport.Input;
 using SimpleSeleniumSupport.Network;
 using SimpleSeleniumSupport.Image;
 using SimpleSeleniumSupport.OCR;
+using SimpleSeleniumSupport.Page;
 using SimpleSeleniumSupport.Performance;
 using SimpleSeleniumSupport.Selectors;
 using SimpleSeleniumSupport.Selectors.Engine;
@@ -90,7 +99,8 @@ public static void Configure()
 
     // ── Timeouts ─────────────────────────────────────────────
     SimpleSeleniumSupportDefaults.WaitTimeoutSeconds        = 15;   // WaitAndFindByAI
-    SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds     = 10;   // GetByRole / GetByText / etc.
+    SimpleSeleniumSupportDefaults.LocatorTimeoutSeconds     = 10;   // Locator actions (Click, Fill, …)
+    SimpleSeleniumSupportDefaults.AssertionTimeoutSeconds   = 5;    // WebExpect.That(…) auto-retry
     SimpleSeleniumSupportDefaults.NetworkWaitTimeoutSeconds = 30;   // WaitForRequest
 
     // ── Visual regression ─────────────────────────────────────
@@ -547,6 +557,109 @@ HtmlExporterChunkedWithGridjs.ExportNetworkInfoToChunkedHtml(
 
 ---
 
+## Network Request Routing
+
+`NetworkRouter` provides Playwright-style request interception — mock API responses, block resources, or proxy requests with header/body overrides. Works with Chrome and Edge (DevTools required).
+
+### Start routing via extension method
+
+```csharp
+using SimpleSeleniumSupport.Network;
+
+// Creates and starts a router in one call — dispose to stop
+using var router = driver.StartRouting();
+```
+
+### Mock an API endpoint
+
+```csharp
+router.Route("**/api/users", route =>
+    route.Fulfill(
+        statusCode:  200,
+        body:        """[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]""",
+        contentType: "application/json"));
+
+driver.Navigate().GoToUrl("https://myapp.com/users");
+// The page receives the mocked JSON instead of hitting the real API
+```
+
+### Abort requests (block images, ads, trackers)
+
+```csharp
+// Block all PNG images
+router.Route("**/*.png", route => route.Abort());
+
+// Block third-party analytics
+router.Route("**/analytics/**", route => route.Abort());
+```
+
+### Modify a request before forwarding (Continue with overrides)
+
+```csharp
+router.Route("**/api/**", route =>
+    route.Continue(
+        headers: new Dictionary<string, string>
+        {
+            ["Authorization"] = "Bearer test-token",
+            ["X-Test-Mode"]   = "1"
+        }));
+```
+
+### Wait for a request
+
+```csharp
+// Run an action and wait until a matching network request is made
+var loginCall = router.WaitForRequest("**/api/login", () =>
+    driver.GetByRole("button", "Sign in").Click());
+
+Assert.AreEqual(200, loginCall.ResponseStatusCode);
+```
+
+### Wait for a response
+
+```csharp
+var orderResponse = router.WaitForResponse("**/api/orders", () =>
+    driver.GetByRole("button", "Place order").Click());
+
+Assert.AreEqual(201, orderResponse.ResponseStatusCode);
+```
+
+### One-liner wait (no explicit router needed)
+
+```csharp
+// Driver extension — router is created, started, and disposed automatically
+var info = driver.WaitForRequest("**/api/search",
+    () => driver.GetByRole("button", "Search").Click());
+
+Console.WriteLine($"Search URL: {info.RequestUrl}");
+```
+
+### Remove a route
+
+```csharp
+// Unregister a specific pattern; remaining routes stay active
+router.RemoveRoute("**/*.png");
+```
+
+### RoutePattern syntax
+
+| Pattern | Matches |
+|---------|---------|
+| `**/api/users` | any URL ending with `/api/users` |
+| `**/*.png` | any URL whose path ends with `.png` |
+| `https://example.com/**` | any URL under `example.com` |
+| `^https://api\\.example\\.com/` | raw regex (starts with `^`) |
+
+### Route decision methods
+
+| Method | Effect |
+|--------|--------|
+| `route.Fulfill(statusCode, body, contentType, headers)` | Return a mocked response to the browser |
+| `route.Abort()` | Cancel the request — browser sees a network error |
+| `route.Continue(url?, method?, headers?, postData?)` | Forward with optional overrides |
+
+---
+
 ## Playwright-Style Selectors
 
 All selectors support a `LocatorOptions` parameter for timeout, polling, and wait strategy.
@@ -666,6 +779,511 @@ driver.GetByRole("button", "Load more")
 driver.GetByTestId("submit-btn")
       .WaitUntilClickable(timeoutSeconds: 10)
       .Click();
+```
+
+---
+
+## Locator API
+
+`Locator` is a lazy, chainable, auto-retrying element handle — the Playwright-style counterpart to Selenium's eager `FindElement`. The DOM is not queried until an action (`Click`, `Fill`, …) or state query (`IsVisible`, `Count`, …) is called. Every call re-evaluates the selector fresh, so stale-element references are recovered automatically.
+
+Obtain a Locator via `driver.Locator(selector)` or any `GetBy*` call on the driver or on another Locator.
+
+### Basic usage
+
+```csharp
+using SimpleSeleniumSupport.Selectors;
+
+// CSS or XPath — auto-detected
+driver.Locator("[data-testid='submit']").Click();
+driver.Locator("//input[@name='email']").Fill("user@example.com");
+
+// Scoped (parent >> child)
+driver.Locator("form#checkout").GetByRole("button", "Pay Now").Click();
+```
+
+### ActionOptions — timeout and force
+
+```csharp
+var opts = new ActionOptions
+{
+    TimeoutSeconds = 20,    // override per-action timeout
+    PollingMs      = 200,   // polling interval while waiting
+    Force          = true   // skip actionability checks (visible/enabled)
+};
+
+driver.Locator("#submit").Click(opts);
+```
+
+### Actions
+
+```csharp
+var loc = driver.Locator("#email");
+
+loc.Click();                            // left-click (waits visible + enabled)
+loc.DblClick();                         // double-click
+loc.RightClick();                       // context-menu click
+
+loc.Fill("user@example.com");           // clear + type (fast)
+loc.Type("user@example.com");           // character-by-character key events
+loc.PressSequentially("abc", delayMs: 50);
+loc.Clear();                            // clear value only
+loc.Press("Enter");                     // keyboard shortcut
+loc.Press("Control+A");
+
+loc.Check();                            // tick a checkbox
+loc.Uncheck();                          // untick a checkbox
+
+loc.SelectOption("value");              // <select> by value
+loc.SelectOption(index: 2);            // <select> by index
+loc.SelectOption(label: "Australia");  // <select> by visible text
+
+loc.Hover();
+loc.Focus();
+loc.Blur();
+
+loc.ScrollIntoView();
+
+loc.DragTo(driver.Locator("#target")); // drag-and-drop to another locator
+
+loc.DispatchEvent("click");            // fire a synthetic DOM event
+loc.Evaluate<string>("el => el.id");   // run JS in element scope
+
+byte[] png = loc.Screenshot();         // screenshot of the element's bounding box
+loc.SetInputFiles("/path/to/file.txt");// file input upload
+```
+
+### State queries (no throw)
+
+```csharp
+bool visible  = loc.IsVisible();
+bool hidden   = loc.IsHidden();
+bool enabled  = loc.IsEnabled();
+bool disabled = loc.IsDisabled();
+bool checked_ = loc.IsChecked();
+bool editable = loc.IsEditable();
+
+int   count   = driver.Locator("li.item").Count();
+```
+
+### Reading content
+
+```csharp
+string? text      = loc.TextContent();
+string? inner     = loc.InnerHTML();
+string? attr      = loc.GetAttribute("href");
+string? val       = loc.InputValue();
+```
+
+### Filtering
+
+```csharp
+// Keep only rows that contain "Alice"
+driver.Locator("tr").Filter(hasText: "Alice").GetByRole("button").Click();
+
+// Exclude rows containing "disabled"
+driver.Locator("tr").Filter(hasNotText: "disabled").First.Click();
+
+// Keep only rows that contain a visible checkbox
+driver.Locator("tr").Filter(has: driver.Locator("input[type=checkbox]")).Count();
+```
+
+### Indexing
+
+```csharp
+driver.Locator("tr").First.TextContent();
+driver.Locator("tr").Last.TextContent();
+driver.Locator("tr").Nth(2).GetByRole("checkbox").Check();   // 0-based
+```
+
+### Combining locators
+
+```csharp
+// AND — element must match both locators
+var strictBtn = driver.Locator("button").And(driver.Locator(".primary"));
+strictBtn.Click();
+
+// OR — element matching either locator
+var anyToggle = driver.Locator("input[type=checkbox]").Or(driver.Locator("input[type=radio]"));
+Console.WriteLine($"Toggles found: {anyToggle.Count()}");
+```
+
+### Wait helpers
+
+```csharp
+// Wait until state changes (polls up to LocatorTimeoutSeconds)
+loc.WaitFor(LocatorState.Visible);
+loc.WaitFor(LocatorState.Hidden);
+loc.WaitFor(LocatorState.Enabled);
+loc.WaitFor(LocatorState.Detached);   // element removed from DOM
+```
+
+### `driver.Locator()` extension
+
+```csharp
+// Top-level factory — available without additional using
+var btn = driver.Locator("button.submit");
+```
+
+---
+
+## FrameLocator (iframe support)
+
+`FrameLocator` scopes element searches inside an iframe. The driver switches into the frame before each operation and back to default content afterwards.
+
+### Single iframe
+
+```csharp
+// Obtain via driver extension
+driver.FrameLocator("#checkout-frame")
+      .GetByRole("button", "Pay")
+      .Click();
+```
+
+### Nested iframes
+
+```csharp
+driver.FrameLocator("#outer-frame")
+      .InnerFrame("#inner-frame")
+      .Locator("input[name=card]")
+      .Fill("4111111111111111");
+```
+
+### All locator factories work inside a frame
+
+```csharp
+var frame = driver.FrameLocator("#widget");
+
+frame.Locator(".price").TextContent();
+frame.GetByRole("button", "Submit").Click();
+frame.GetByText("Confirm").IsVisible();
+frame.GetByTestId("close-btn").Click();
+```
+
+---
+
+## Playwright-Style Assertions
+
+`WebExpect.That(locator)` and `WebExpect.That(driver)` provide auto-retrying assertions that poll the DOM for up to `SimpleSeleniumSupportDefaults.AssertionTimeoutSeconds` (default: 5 s) before failing — giving the page time to settle without explicit waits.
+
+### Element assertions
+
+```csharp
+using SimpleSeleniumSupport.Assertions;
+
+var submit = driver.Locator("#submit");
+
+WebExpect.That(submit).IsVisible();
+WebExpect.That(submit).IsEnabled();
+WebExpect.That(submit).IsChecked();
+WebExpect.That(submit).IsEditable();
+WebExpect.That(submit).IsDisabled();
+WebExpect.That(submit).IsHidden();
+WebExpect.That(submit).IsEmpty();
+```
+
+### Content assertions
+
+```csharp
+WebExpect.That(driver.Locator("h1")).HasText("Welcome back");
+WebExpect.That(driver.Locator(".subtitle")).ContainsText("logged in");
+WebExpect.That(driver.Locator("#qty")).HasValue("3");
+WebExpect.That(driver.Locator(".badge")).HasAttribute("aria-label", "5 items");
+WebExpect.That(driver.Locator(".badge")).HasClass("active");
+WebExpect.That(driver.Locator("li")).HasCount(5);
+WebExpect.That(driver.Locator("#panel")).ContainsHTML("<strong>important</strong>");
+```
+
+### Negation with `.Not`
+
+```csharp
+WebExpect.That(driver.Locator("#error")).Not.IsVisible();
+WebExpect.That(driver.Locator("#spinner")).Not.IsVisible();
+WebExpect.That(driver.Locator("#status")).Not.HasText("Error");
+```
+
+### Page assertions
+
+```csharp
+WebExpect.That(driver).HasTitle("Dashboard — MyApp");
+WebExpect.That(driver).TitleContains("MyApp");
+WebExpect.That(driver).HasUrl("https://myapp.com/dashboard");
+WebExpect.That(driver).UrlContains("/dashboard");
+WebExpect.That(driver).UrlStartsWith("https://myapp.com");
+
+// Negation
+WebExpect.That(driver).Not.UrlContains("/login");
+```
+
+### Assertion timeout
+
+```csharp
+// Override globally
+SimpleSeleniumSupportDefaults.AssertionTimeoutSeconds = 10;
+```
+
+### Soft assertions — collect all failures
+
+Use `SoftAssertions` when you want to run every check and see all failures at once rather than stopping at the first one.
+
+```csharp
+using var soft = new SoftAssertions(driver);
+
+soft.Expect(driver.Locator("h1")).HasText("Welcome");
+soft.Expect(driver.Locator("#badge")).HasCount(3);
+soft.Expect(driver.Locator(".status")).ContainsText("active");
+soft.Expect(driver).HasTitle("Dashboard");
+soft.Expect(driver).UrlContains("/dashboard");
+
+// All failures thrown together as SoftAssertionException at end of using block
+// soft.AssertAll();  // or call explicitly before Dispose
+```
+
+Inspect failures before throwing:
+
+```csharp
+using var soft = new SoftAssertions(driver);
+// ... assertions ...
+if (soft.FailureCount > 0)
+    Console.WriteLine($"{soft.FailureCount} assertion(s) failed — see log.");
+soft.AssertAll();   // throws SoftAssertionException listing all failures
+```
+
+---
+
+## SeleniumPage
+
+`SeleniumPage` wraps an `IWebDriver` with a Playwright-style page API covering navigation, waits, JavaScript evaluation, screenshots, cookies, local/session storage, dialogs, downloads, viewport, and geolocation. Obtain via `driver.AsPage()`.
+
+```csharp
+using SimpleSeleniumSupport.Page;
+
+var page = driver.AsPage();
+```
+
+### Navigation
+
+```csharp
+page.GoTo("https://example.com");
+page.Reload();
+page.GoBack();
+page.GoForward();
+
+Console.WriteLine(page.Url);
+Console.WriteLine(page.Title);
+Console.WriteLine(page.Content());   // page source HTML
+```
+
+### Wait helpers
+
+```csharp
+// Wait until URL matches a glob or regex
+page.WaitForUrl("**/dashboard");
+page.WaitForUrl("^https://myapp\\.com/user/\\d+");
+
+// Wait for a load state
+page.WaitForLoadState(LoadState.Load);
+page.WaitForLoadState(LoadState.DomContentLoaded);
+page.WaitForLoadState(LoadState.NetworkIdle);
+
+// Wait for a CSS/XPath selector
+page.WaitForSelector("#confirm-dialog");
+
+// Wait for a custom JS condition
+page.WaitForFunction("return document.readyState === 'complete' && !window.__loading");
+```
+
+### JavaScript evaluation
+
+```csharp
+string title    = page.Evaluate<string>("document.title")!;
+long  itemCount = page.Evaluate<long>("document.querySelectorAll('li').length");
+page.Evaluate("window.scrollTo(0, document.body.scrollHeight)");
+```
+
+### Page content
+
+```csharp
+// Replace entire page DOM with custom HTML (useful for isolated component testing)
+page.SetContent("<h1>Hello World</h1><button id='btn'>Click me</button>");
+WebExpect.That(driver.Locator("h1")).HasText("Hello World");
+```
+
+### Screenshot
+
+```csharp
+byte[] png = page.Screenshot();                      // in-memory bytes
+page.Screenshot("screenshots/landing.png");          // save to file
+```
+
+### Cookies
+
+```csharp
+page.AddCookie("session", "abc123");
+page.AddCookie("pref", "dark", domain: ".example.com");
+
+var cookies = page.GetCookies();
+
+page.DeleteCookie("session");
+page.ClearCookies();
+```
+
+### Local storage & session storage
+
+```csharp
+page.SetLocalStorageItem("theme", "dark");
+string? theme = page.GetLocalStorageItem("theme");
+page.RemoveLocalStorageItem("theme");
+page.ClearLocalStorage();
+
+page.SetSessionStorageItem("cart-id", "XYZ-9");
+string? cartId = page.GetSessionStorageItem("cart-id");
+```
+
+### Dialogs (alert / confirm / prompt)
+
+```csharp
+// Register a handler — called on a background thread when a dialog appears
+page.OnDialog(dialog =>
+{
+    Console.WriteLine($"Dialog type: {dialog.Type}  Message: {dialog.Message}");
+    dialog.Accept();          // or dialog.Accept("my input") for prompts
+    // dialog.Dismiss();
+});
+
+driver.FindElement(By.Id("delete-btn")).Click();  // triggers confirm dialog
+
+// Or wait for a dialog explicitly and handle it inline
+var dialog = page.WaitForDialog(timeoutMs: 5000);
+Assert.AreEqual("Are you sure?", dialog.Message);
+dialog.Accept();
+```
+
+### Downloads
+
+```csharp
+page.SetDownloadDirectory(@"C:\Temp\Downloads");
+
+// Run an action that triggers a download, then wait for the file
+DownloadInfo dl = page.ExpectDownload(() =>
+    driver.FindElement(By.Id("export-btn")).Click(),
+    timeoutMs: 30_000);
+
+Console.WriteLine($"Downloaded: {dl.FilePath}  Size: {dl.SizeBytes} bytes");
+dl.Dispose();   // deletes the temp file
+```
+
+### Viewport & emulation
+
+```csharp
+page.SetViewportSize(375, 812);         // iPhone 13 portrait
+var size = page.GetViewportSize();      // System.Drawing.Size
+
+page.SetGeolocation(latitude: 51.5, longitude: -0.1);  // London
+page.SetUserAgent("Mozilla/5.0 (compatible; MyTestBot/1.0)");
+```
+
+### Locator factories on SeleniumPage
+
+`SeleniumPage` exposes the same locator factories as the driver:
+
+```csharp
+page.Locator("#submit").Click();
+page.GetByRole("button", "Pay").Click();
+page.GetByText("Welcome").IsVisible();
+page.GetByTestId("nav-menu").Hover();
+page.FrameLocator("#payment-frame").GetByRole("button", "Confirm").Click();
+```
+
+---
+
+## Mouse & Keyboard Input
+
+Low-level absolute-coordinate and element-relative mouse/keyboard operations. Obtain via `driver.Mouse()` and `driver.Keyboard()`.
+
+### Mouse — clicks at coordinates
+
+```csharp
+using SimpleSeleniumSupport.Input;
+
+driver.Mouse().Click(100, 200);
+driver.Mouse().DblClick(300, 400);
+driver.Mouse().RightClick(100, 200);
+driver.Mouse().Hover(500, 300);
+```
+
+### Mouse — element-based
+
+```csharp
+var element = driver.FindElement(By.Id("canvas-item"));
+driver.Mouse().Click(element);
+driver.Mouse().DblClick(element);
+driver.Mouse().Hover(element);
+```
+
+### Drag-and-drop
+
+```csharp
+// Element-to-element drag
+var source = driver.FindElement(By.Id("card-1"));
+var target = driver.FindElement(By.Id("column-done"));
+driver.Mouse().DragTo(source, target);
+
+// Manual drag with MouseChain
+driver.Mouse()
+      .Down()            // click-hold
+      .MoveTo(target)    // move cursor to element
+      .Up()              // release
+      .Perform();
+```
+
+### Scroll
+
+```csharp
+// Scroll the page
+driver.Mouse().Wheel(deltaX: 0, deltaY: 500);    // scroll down 500 px
+
+// Scroll inside a specific element (e.g. a scrollable div)
+var list = driver.FindElement(By.Id("lazy-list"));
+driver.Mouse().Wheel(list, deltaX: 0, deltaY: 300);
+```
+
+### Keyboard — type and press
+
+```csharp
+// Focus an element then type
+driver.FindElement(By.Id("search")).Click();
+driver.Keyboard().Type("wireless headphones");
+driver.Keyboard().Press("Enter");
+
+// Compound shortcuts
+driver.Keyboard().Press("Control+A");
+driver.Keyboard().Press("Control+C");
+driver.Keyboard().Press("Escape");
+driver.Keyboard().Press("F5");
+```
+
+### Modifier keys
+
+```csharp
+// Shift-select text
+driver.Keyboard().Down("Shift");
+driver.Keyboard().Press("End");
+driver.Keyboard().Up("Shift");
+```
+
+### Fast text injection (no key events)
+
+```csharp
+// Equivalent to a clipboard paste — no individual keydown/keyup events
+driver.FindElement(By.Id("address")).Click();
+driver.Keyboard().InsertText("123 Main Street, Anytown, CA 90210");
+```
+
+### Slow typing (character-by-character with delay)
+
+```csharp
+driver.Keyboard().PressSequentially("Hello World", delayMs: 100);
 ```
 
 ---
@@ -2136,9 +2754,12 @@ using OpenQA.Selenium.Chrome;
 using Microsoft.Extensions.Logging;
 using SimpleSeleniumSupport;
 using SimpleSeleniumSupport.AI;
+using SimpleSeleniumSupport.Assertions;
+using SimpleSeleniumSupport.Input;
 using SimpleSeleniumSupport.Network;
 using SimpleSeleniumSupport.Image;
 using SimpleSeleniumSupport.OCR;
+using SimpleSeleniumSupport.Page;
 using SimpleSeleniumSupport.Performance;
 using SimpleSeleniumSupport.Selectors;
 using SimpleSeleniumSupport.Recording;
@@ -2314,22 +2935,110 @@ public class ExampleTests
     {
         try
         {
-            driver.Navigate().GoToUrl("https://demo.example.com/login");
+            var page = driver.AsPage();
+            page.GoTo("https://demo.example.com/login");
+            page.WaitForLoadState(LoadState.NetworkIdle);
 
-            // Playwright-style selectors
-            driver.GetByLabel("Email").SendKeys("user@example.com");
-            driver.GetByLabel("Password").SendKeys("secret");
-            driver.GetByRole("button", "Sign in").Click();
+            // Playwright-style Locator actions
+            driver.Locator("#email").Fill("user@example.com");
+            driver.Locator("#password").Fill("secret");
+            driver.Locator("button[type=submit]").Click();
 
             // Wait for the API call to complete
             var loginResponse = capture.WaitForRequest(
                 i => i.RequestUrl?.Contains("/api/auth") == true && i.ResponseStatusCode == 200,
                 timeoutSeconds: 15);
-
             Assert.AreEqual(200, loginResponse.ResponseStatusCode);
 
-            var greeting = driver.GetByText("Welcome", new LocatorOptions { ExactMatch = false });
-            Assert.IsTrue(greeting.Displayed);
+            // Auto-retrying assertions (polls up to AssertionTimeoutSeconds)
+            WebExpect.That(driver.Locator("h1")).ContainsText("Welcome");
+            WebExpect.That(driver).UrlContains("/dashboard");
+        }
+        catch (Exception ex) { lastException = ex; throw; }
+    }
+
+    [Test]
+    public void CheckoutFlow_LocatorChainingAndAssertions()
+    {
+        try
+        {
+            driver.Navigate().GoToUrl("https://demo.example.com/shop");
+
+            // Chained locator: scope product grid → filter by name → click add
+            driver.Locator(".product-card")
+                  .Filter(hasText: "Wireless Headphones")
+                  .GetByRole("button", "Add to cart")
+                  .Click();
+
+            WebExpect.That(driver.Locator(".cart-count")).HasText("1");
+
+            // Soft assertions — collect all failures before throwing
+            using var soft = new SoftAssertions(driver);
+            soft.Expect(driver.Locator(".cart-icon")).IsVisible();
+            soft.Expect(driver.Locator(".cart-count")).HasText("1");
+            soft.Expect(driver).UrlContains("/shop");
+        }
+        catch (Exception ex) { lastException = ex; throw; }
+    }
+
+    [Test]
+    public void NetworkMocking_ApiResponse()
+    {
+        try
+        {
+            using var router = driver.StartRouting();
+
+            // Mock the products API to return a single item
+            router.Route("**/api/products", route =>
+                route.Fulfill(
+                    body:        """[{"id":1,"name":"Mocked Widget","price":9.99}]""",
+                    contentType: "application/json"));
+
+            driver.Navigate().GoToUrl("https://demo.example.com/shop");
+
+            WebExpect.That(driver.Locator(".product-card")).HasCount(1);
+            WebExpect.That(driver.Locator(".product-card h2")).HasText("Mocked Widget");
+        }
+        catch (Exception ex) { lastException = ex; throw; }
+    }
+
+    [Test]
+    public void IframeCheckout_FrameLocator()
+    {
+        try
+        {
+            driver.Navigate().GoToUrl("https://demo.example.com/checkout");
+
+            // Interact with elements inside an iframe
+            driver.FrameLocator("#payment-frame")
+                  .Locator("input[name=cardNumber]")
+                  .Fill("4111111111111111");
+
+            driver.FrameLocator("#payment-frame")
+                  .GetByRole("button", "Pay securely")
+                  .Click();
+
+            WebExpect.That(driver.Locator(".confirmation")).IsVisible();
+        }
+        catch (Exception ex) { lastException = ex; throw; }
+    }
+
+    [Test]
+    public void SearchPage_MouseAndKeyboard()
+    {
+        try
+        {
+            driver.Navigate().GoToUrl("https://demo.example.com/search");
+            driver.FindElement(By.Id("search-box")).Click();
+
+            // Type with key events then submit
+            driver.Keyboard().Type("selenium");
+            driver.Keyboard().Press("Enter");
+
+            WebExpect.That(driver.Locator(".result-count")).IsVisible();
+
+            // Scroll results list
+            driver.Mouse().Wheel(0, 500);
         }
         catch (Exception ex) { lastException = ex; throw; }
     }

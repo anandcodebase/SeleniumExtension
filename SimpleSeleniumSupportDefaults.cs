@@ -36,6 +36,14 @@ namespace SimpleSeleniumSupport
         public static int LocatorTimeoutSeconds { get; set; } = 10;
 
         /// <summary>
+        /// Default auto-retry timeout (seconds) for <see cref="Assertions.WebExpect"/> and
+        /// <see cref="Assertions.SoftAssertions"/> assertion methods.
+        /// Assertions poll the DOM for up to this many seconds before throwing.
+        /// Default: <c>5</c>.
+        /// </summary>
+        public static int AssertionTimeoutSeconds { get; set; } = 5;
+
+        /// <summary>
         /// Default timeout (seconds) for <c>WaitForRequest</c> and <c>WaitForAllRequests</c>.
         /// </summary>
         public static int NetworkWaitTimeoutSeconds { get; set; } = 30;

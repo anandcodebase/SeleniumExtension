@@ -318,13 +318,18 @@ namespace SimpleSeleniumSupport.Reporting
         private static string? ExtractAllRowsJson(string html)
         {
             const string startMarker = "ALL_ROWS = [";
-            const string endMarker   = "; populateDropdowns";
 
             int start = html.IndexOf(startMarker, StringComparison.Ordinal);
             if (start < 0) return null;
             start += "ALL_ROWS = ".Length;  // point to the opening '['
 
-            int end = html.IndexOf(endMarker, start, StringComparison.Ordinal);
+            // Current format: ALL_ROWS = [...];\ndocument.getElementById(...)
+            // Legacy format:  ALL_ROWS = [...]; populateDropdowns(...)
+            int end = html.IndexOf(";\ndocument.getElementById('load-msg')", start, StringComparison.Ordinal);
+            if (end < 0)
+                end = html.IndexOf("; populateDropdowns", start, StringComparison.Ordinal);
+            if (end < 0)
+                end = html.IndexOf(";\npopulateDropdowns", start, StringComparison.Ordinal);
             if (end < 0) return null;
 
             // Reverse the </script → <\/script escaping applied when writing the single-file report
